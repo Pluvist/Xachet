@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.ReportDrawnWhen
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -36,6 +39,10 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import org.json.JSONObject
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.neoruaa.glasmio.core.*
 import io.github.neoruaa.glasmio.glass.*
@@ -44,6 +51,7 @@ import io.github.neoruaa.glasmio.scaffold.*
 import io.github.neoruaa.glasmio.ui.*
 import io.github.neoruaa.glasmio.glass.render.backdrops.rememberLayerBackdrop
 import io.github.neoruaa.glasmio.glass.render.backdrops.rememberCanvasBackdrop
+import io.github.neoruaa.glasmio.glass.render.backdrops.layerBackdrop
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -57,6 +65,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val vm:SachetViewModel=viewModel()
+            LifecycleResumeEffect(vm) { vm.onForeground();onPauseOrDispose{} }
             val benchmarkFixture=BuildConfig.APPLICATION_ID.endsWith(".benchmark")&&intent.getBooleanExtra("load_fixture",false)
             val benchmarkGuide=BuildConfig.APPLICATION_ID.endsWith(".benchmark")&&intent.getBooleanExtra("show_onboarding",false)
             LaunchedEffect(benchmarkFixture){if(benchmarkFixture)vm.loadBenchmarkFixture()}
@@ -72,12 +81,33 @@ class MainActivity : ComponentActivity() {
             }}
             SachetTextEnvironment {
             GlasmioTheme(isDark=dark,colorScheme=glasmioColorScheme(dark,accent),typography=SachetTypography,letterSpacing=0.sp,
-                appearance=GlassAppearance(blurRadiusMultiplier=3f,refractionAmountMultiplier=1.25f)) { GlasmioIconProvider(resolver=GlasmioIconResolver { name ->
+                appearance=GlassAppearance(blurRadiusMultiplier=3f,refractionAmountMultiplier=1.25f,
+                    materialFaceOpacity=0f,frostOverlayColor=(if(dark)Color.Black else Color.White).copy(alpha=.10f))) { GlasmioIconProvider(resolver=GlasmioIconResolver { name ->
             MaterialGlasmioIconResolver.resolve(if(name==SfSymbol.Layers.systemName) "calendar" else name)
         }) {
             // Isolated test entry only; replay the guide without clearing any saved app data.
             var onboarding by rememberSaveable{mutableStateOf<Boolean?>(if(benchmarkGuide)true else if(benchmarkFixture)false else null)}
-            LaunchedEffect(data.loading){if(onboarding==null&&!data.loading)onboarding=!settings.optBoolean("hasReadDisclaimer")}
+            // Boot readiness is independent of the network spinner: the initial
+            // automatic refresh used to set loading=true before this effect ran.
+            LaunchedEffect(data.initialized){if(onboarding==null&&data.initialized)onboarding=!settings.optBoolean("hasReadDisclaimer")}
+            ReportDrawnWhen{data.initialized&&onboarding!=null}
+            LaunchedEffect(data.initialized,onboarding){
+                if(data.initialized&&onboarding!=null){withFrameNanos{};vm.onFirstContentFrame()}
+            }
+            val notifications=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){
+                vm.onNotificationPermissionChanged()
+            }
+            val lifecycle=LocalLifecycleOwner.current.lifecycle
+            val notificationsEnabled=settings.optBoolean("isEnableCourseLiveActivity",true)||settings.optBoolean("isEnableCourseReminders",true)
+            LaunchedEffect(data.initialized,data.hasSchedule,data.courses.isNotEmpty(),notificationsEnabled,onboarding,lifecycle){
+                if(onboarding==false&&!BuildConfig.APPLICATION_ID.endsWith(".benchmark"))lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    vm.awaitFirstContentFrame()
+                    if(vm.shouldRequestNotificationPermission()) {
+                        notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        vm.markNotificationPermissionRequested()
+                    }
+                }
+            }
             Box(Modifier.fillMaxSize().background(LocalGlassColors.current.groupedBackground)) {
             if(onboarding!=null) CrestoPageLayer(onboarding==false){SachetApp(vm)}
             AnimatedVisibility(onboarding==true,enter=crestoEnter(),exit=crestoExit()) {
@@ -108,9 +138,11 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     // interrupted. Detail-to-detail navigation keeps the accessory docked throughout.
     val accessoryDocking=animateFloatAsState(if(detail!=null)1f else 0f,
         spring(dampingRatio=.9f,stiffness=350f,visibilityThreshold=.001f),label="Course accessory docking")
-    val statusChromeRequested=courseMorph.statusChromeRequested
+    val statusChromeRequested by remember(courseMorph){derivedStateOf{courseMorph.statusChromeRequested}}
     val statusDeparture=animateFloatAsState(if(statusChromeRequested)1f else 0f,
-        spring(dampingRatio=.9f,stiffness=500f,visibilityThreshold=.001f),label="Status companion flight")
+        if(statusChromeRequested)CourseMorphMotion.open(CourseMorphContent.Status)
+        else CourseMorphMotion.close(CourseMorphContent.Status,courseMorph.retargeting),
+        label="Status companion flight")
     val chromeDeparture=remember(accessoryDocking,statusDeparture){derivedStateOf{
         maxOf(accessoryDocking.value,statusDeparture.value).coerceIn(0f,1f)
     }}
@@ -144,15 +176,33 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         drawContext.canvas.nativeCanvas.drawColor(canvasColor.toArgb())
     }
     val edgeBackdrop=rememberLayerBackdrop()
-    val morphThumbnail=rememberCourseThumbnailBackdrop()
+    val courseDepthBackdrop=rememberLayerBackdrop()
+    val courseDepthEnabled=remember(courseMorph){ { courseMorph.isBusy } }
+    val courseSearchEnabled=remember(courseMorph){derivedStateOf{!courseMorph.isBusy}}
+    val visiblePageBackdrop=remember(edgeBackdrop,courseDepthBackdrop,courseDepthEnabled){
+        CourseDynamicBackdrop(edgeBackdrop,courseDepthBackdrop,courseDepthEnabled)
+    }
+    val courseWindowProgress=remember(courseMorph){derivedStateOf{courseMorph.flight?.progress?.value?:0f}}
+    val courseCaptureEpoch=remember(courseMorph){derivedStateOf{courseMorph.flight?.captureEpoch?:-1}}
+    val depthSceneRevision=remember(data.reloadRevision,data.courses,data.settingsSnapshot,data.appearanceSnapshot,data.colors,canvasColor){Any()}
+    val courseRaster=remember{CourseBackgroundRasterState()}
+    val courseBackgroundDepth=rememberCourseBackgroundDepth(courseWindowProgress,courseCaptureEpoch,
+        depthSceneRevision,edgeBackdrop.graphicsLayer,courseRaster)
+    val coursePanelBackdrop=rememberCourseStaticRasterBackdrop(courseRaster,courseCaptureEpoch,depthSceneRevision,
+        courseWindowProgress,courseDepthBackdrop)
     CompositionLocalProvider(LocalCourseMorph provides courseMorph) {
-    Box(Modifier.fillMaxSize().onGloballyPositioned{courseMorph.rootScreenOrigin=it.positionOnScreen()}
+    Box(Modifier.fillMaxSize().onGloballyPositioned{
+        courseMorph.rootScreenOrigin=it.positionOnScreen()
+        coursePanelBackdrop.sourceCoordinates=it
+    }
         .academicSearchDismissGesture(academicSearch,detail)) {
     Box(Modifier.fillMaxSize()) {
     Box(Modifier.fillMaxSize().nestedScroll(navigationScroll.nestedScrollConnection)) {
     // A uniform canvas has no screen-space transform or image-filter dependency.
     // Inner page buttons retain the same opaque color during every window flight.
     GlasmioBackdropHost(Modifier.fillMaxSize(),sampledContent={
+        Box(Modifier.fillMaxSize().layerBackdrop(courseDepthBackdrop,reuseContent=true,enabled=courseDepthEnabled)
+            .background(canvasColor).then(courseBackgroundDepth)) {
         // The glass must capture the same opaque canvas that is visible behind pages.
         // Retained page transitions expose transparent gaps before they settle; keep
         // those gaps out of the sampled scene as well as the visible canvas.
@@ -189,19 +239,21 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         }
         }
         }
+        }
     },overlayContent={
         AcademicSearchScrim(academicSearch,detail)
-        CompositionLocalProvider(LocalGlassAppearance provides LocalGlassAppearance.current.copy(blurRadiusMultiplier=4.5f,chromaticStrength=1f,refractionAmountMultiplier=2f)) {
+        CompositionLocalProvider(LocalGlassAppearance provides footerGlassAppearance(LocalGlassAppearance.current,LocalGlassColors.current.isDark),
+            LocalGlassBackdrop provides visiblePageBackdrop,LocalBlurBackdrop provides visiblePageBackdrop) {
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().academicAccessoryImeLift(academicSearch,detail).navigationBarsPadding().padding(horizontal=20.dp).padding(bottom=8.dp).height(118.dp)
             .graphicsLayer()) {
             Box(Modifier.align(Alignment.BottomStart).widthIn(max=560.dp).fillMaxWidth().fillMaxHeight()) {
-            AcademicAccessoryRow(navigationScroll.compactProgress,accessoryDocking,academicSearch,detail,statusDeparture,searchEnabled=!courseMorph.isBusy) {
+            AcademicAccessoryRow(navigationScroll.compactProgress,accessoryDocking,academicSearch,detail,statusDeparture,searchEnabled=courseSearchEnabled) {
             val title=status.current?.course?.title?:status.next?.course?.title?:if(status.completed)"课程已完成" else "今日无课喵~"
             val subtitle=status.current?.course?.place?:status.next?.let{"${it.startTime()} · ${it.course.place}"}.orEmpty()
             val titleStyle=IosTypography.headline.copy(lineHeight=20.sp,color=LocalGlassColors.current.content)
             val subtitleStyle=IosTypography.caption2.copy(lineHeight=14.sp,color=LocalGlassColors.current.content)
             val source=rememberCourseMorphSource("course-status",24f,eligible=academicSearch.session?.expanded!=true){CourseMorphContent.Status}
-            GlassSurface(Modifier.fillMaxSize().morphSource(source).graphicsLayer{alpha=if(courseMorph.owns("course-status"))0f else 1f},shape=com.kyant.shapes.Capsule(),onClick={source?.open()}) {
+            CourseGlassSurface(Modifier.fillMaxSize().morphSource(source).graphicsLayer{alpha=if(courseMorph.owns("course-status"))0f else 1f},backdrop=visiblePageBackdrop,onClick={source?.open()}) {
                 Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(title,Modifier.morphText(source,"title",title,titleStyle),style=titleStyle,maxLines=1,overflow=TextOverflow.Ellipsis)
@@ -226,8 +278,7 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     })
     }
     }
-    CourseThumbnailCapture(courseMorph,morphThumbnail,edgeBackdrop,canvasColor)
-    CourseMorphHost(courseMorph,morphThumbnail,status){course,routine->vm.setRoutine(course,routine)}
+    CourseMorphHost(courseMorph,coursePanelBackdrop,status){course,routine->vm.setRoutine(course,routine)}
     }
     }
 }
@@ -261,8 +312,11 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
 @Composable private fun RetainedTabs(selected:String,visible:Boolean,content:@Composable (String)->Unit) {
     val mounted=remember{mutableStateListOf(selected)}
     LaunchedEffect(Unit){
-        for(key in listOf("home","schedule","profile")) {
-            delay(250)
+        // Let the visible home finish its first frames before warming the hidden
+        // timetable (font layouts, index and glass layers are expensive cold work).
+        withFrameNanos{};delay(1000)
+        for(key in listOf("profile","home","schedule")) {
+            delay(350)
             if(key !in mounted)mounted.add(key)
         }
     }

@@ -25,7 +25,13 @@ data class GlassAppearance(
     /** Optional coating over the filtered face; foreground and exterior shadows stay separate. */
     val frostOverlayColor: Color = Color.Transparent,
     val minimumBlurOpacity: Float = 0f,
+    /** Neutral face coating only. Refraction, edge light and explicit action tints remain visible. */
+    val materialFaceOpacity: Float = 1f,
+    /** Read during material drawing/effect evaluation, so a fade updates without recomposition. */
+    val frostOverlayColorProvider: (() -> Color)? = null,
 ) {
+    fun resolvedFrostOverlayColor(): Color = frostOverlayColorProvider?.invoke() ?: frostOverlayColor
+
     val usesRefraction: Boolean
         get() = liquidGlassEnabled && !reduceTransparency
 

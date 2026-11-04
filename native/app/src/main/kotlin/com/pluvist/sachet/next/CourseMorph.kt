@@ -20,12 +20,14 @@ internal sealed interface CourseMorphContent {
 }
 internal object CourseMorphMotion {
     fun open(content:CourseMorphContent)=spring<Float>(
-        dampingRatio=if(content is CourseMorphContent.Lesson).88f else .68f,
-        stiffness=430f,visibilityThreshold=.0005f,
+        // Keep interruption velocity, but settle the outline without the long
+        // status-panel bounce that repeatedly invalidates its glass filter.
+        dampingRatio=if(content is CourseMorphContent.Lesson)1f else .91f,
+        stiffness=580f,visibilityThreshold=.0005f,
     )
     fun close(content:CourseMorphContent,replacing:Boolean)=spring<Float>(
-        dampingRatio=if(replacing).85f else if(content is CourseMorphContent.Lesson).88f else .7f,
-        stiffness=if(replacing)950f else 520f,visibilityThreshold=.0005f,
+        dampingRatio=if(replacing).95f else if(content is CourseMorphContent.Lesson).96f else .94f,
+        stiffness=if(replacing)1150f else 700f,visibilityThreshold=.0005f,
     )
 }
 internal data class MorphText(val id:String,val value:String,val bounds:Rect,val style:TextStyle,val lines:Int,val layout:TextLayoutResult?=null)
@@ -83,18 +85,21 @@ internal class CourseMorphController {
         intents.dismiss();desired=null;retargeting=false;revision++
     }
     fun refreshedSource(key:String)=sources[key]?.snapshot()
+    var backgroundTapPosition:(Offset)->Offset={it}
     fun outsideTap(){dismiss()}
     fun animationTap(position:Offset) {
         val current=flight
         if(current?.returning!=true&&!retargeting){dismiss();return}
+        val hitPosition=backgroundTapPosition(position)
         // Footer chrome is drawn above page cards, regardless of registration
         // order. Never select a card hidden behind that chrome during return.
         val footer=sources["course-status"]?.snapshot()?.bounds
         val candidates=listOfNotNull(sources["course-status"])+sources.values.toList().asReversed().filter{it.key!="course-status"}
         val source=candidates.firstOrNull{candidate->
+            val sourcePoint=if(candidate.key=="course-status")position else hitPosition
             (candidate.key=="course-status"||footer==null||position.y<footer.top)&&
-            candidate.eligible&&candidate.coordinates?.let{it.isAttached&&it.boundsInRoot().contains(position)}==true&&
-                candidate.snapshot()?.bounds?.contains(position)==true
+            candidate.eligible&&candidate.coordinates?.let{it.isAttached&&it.boundsInRoot().contains(sourcePoint)}==true&&
+                candidate.snapshot()?.bounds?.contains(sourcePoint)==true
         }
         if(BuildConfig.BUILD_TYPE=="preview")android.util.Log.d("CourseMorph","return tap hit=${source!=null}, progress=${flight?.progress?.value}")
         if(source==null)dismiss()
@@ -150,8 +155,12 @@ internal object CourseMorphGeometry {
     fun smooth(value:Float):Float {val p=value.coerceIn(0f,1f);return p*p*(3f-2f*p)}
     fun curve(from:Offset,to:Offset,p:Float,arc:Float):Offset {
         val t=p.coerceIn(-.02f,1.055f);val q=1f-t
-        val a=from+Offset((to.x-from.x)*.12f,-arc)
-        val b=to+Offset((from.x-to.x)*.16f,arc*.35f)
+        // A card above its destination must not first jump upward. Keep the
+        // control points between the source and destination in the Y axis.
+        val direction=if(to.y>from.y)1f else -1f
+        val bend=min(arc,abs(to.y-from.y)*.35f)
+        val a=from+Offset((to.x-from.x)*.12f,direction*bend)
+        val b=to+Offset((from.x-to.x)*.16f,-direction*bend*.35f)
         return from*(q*q*q)+a*(3f*q*q*t)+b*(3f*q*t*t)+to*(t*t*t)
     }
     fun frame(from:Rect,to:Rect,p:Float,arc:Float):Rect {

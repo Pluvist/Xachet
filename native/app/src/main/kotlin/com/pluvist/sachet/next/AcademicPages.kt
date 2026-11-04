@@ -1,6 +1,11 @@
 package com.pluvist.sachet.next
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.Text
@@ -18,12 +23,25 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.time.LocalDate
 
+private enum class AcademicQueryScreen { Form, Results, Curriculum, SearchResults }
+private data class AcademicRecordSnapshot(
+    val source:List<JSONObject>?,
+    val type:String,
+    val records:List<Pair<JSONObject,AcademicRecord>>,
+)
+private data class AcademicFilteredRecords(
+    val source:List<Pair<JSONObject,AcademicRecord>>,
+    val keyword:String,
+    val matches:List<Pair<JSONObject,AcademicRecord>>,
+)
+
 @Composable internal fun QueryPage(feature:QueryFeature,repository:AcademicRepository,back:()->Unit) {
     var form by remember(feature){mutableStateOf<AcademicForm?>(null)}
     val values=remember(feature){mutableStateMapOf<String,String>()}
     var rows by remember(feature){mutableStateOf<List<JSONObject>?>(null)}
     var curriculum by remember(feature){mutableStateOf<List<JSONObject>?>(null)}
     var curriculumTitle by remember(feature){mutableStateOf("")}
+    var curriculumMajorId by remember(feature){mutableStateOf<String?>(null)}
     var loading by remember(feature){mutableStateOf(true)}
     var loadingForm by remember(feature){mutableStateOf(true)}
     var formReloads by remember(feature){mutableIntStateOf(0)}
@@ -35,17 +53,35 @@ import java.time.LocalDate
     var completedReloads by remember(feature){mutableIntStateOf(0)}
     var dependencyError by remember(feature){mutableStateOf(false)}
     var dateText by remember(feature){mutableStateOf(LocalDate.now().toString())}
+    // Features that already loaded and showed rows on entry continue to open
+    // straight into results. Their filters remain one Back action away.
+    var screen by remember(feature){mutableStateOf(if(feature.key in setOf("grades","exams","textbooks","cultivation"))
+        AcademicQueryScreen.Results else AcademicQueryScreen.Form)}
+    var listSearchReturnScreen by remember(feature){mutableStateOf(AcademicQueryScreen.Form)}
+    var curriculumSearchReturnScreen by remember(feature){mutableStateOf(AcademicQueryScreen.Curriculum)}
+    var curriculumReturnScreen by remember(feature){mutableStateOf(AcademicQueryScreen.Results)}
+    var listKeyword by remember(feature){mutableStateOf("")}
+    var curriculumKeyword by remember(feature){mutableStateOf("")}
+    var pendingSearch by remember(feature){mutableStateOf<String?>(null)}
+    var failedDestination by remember(feature){mutableStateOf<AcademicQueryScreen?>(null)}
+    var curriculumRequestId by remember(feature){mutableIntStateOf(0)}
     val scope=rememberCoroutineScope()
     val context=LocalContext.current
-    val close:()->Unit={if(curriculum!=null){curriculum=null;error=null}else back()}
-    BackHandler(curriculum!=null){close()}
+    val close:()->Unit={curriculumRequestId++;when(screen) {
+        AcademicQueryScreen.SearchResults->{screen=if(curriculum!=null)curriculumSearchReturnScreen else listSearchReturnScreen;error=null}
+        AcademicQueryScreen.Curriculum->{curriculum=null;curriculumMajorId=null;screen=curriculumReturnScreen;error=null}
+        AcademicQueryScreen.Results->{screen=AcademicQueryScreen.Form;error=null}
+        AcademicQueryScreen.Form->back()
+    }}
+    BackHandler(screen!=AcademicQueryScreen.Form){close()}
     val exporter=androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/calendar")){uri->uri?.let{scope.launch{
         try{withContext(Dispatchers.IO){
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(CalendarExport.exams(rows.orEmpty()))}?:error("无法写入日历文件")
         }}catch(e:CancellationException){throw e}catch(e:Exception){error=e.message}
     }}}
-    fun query() { scope.launch {
+    fun query(destination:AcademicQueryScreen=AcademicQueryScreen.Results) { scope.launch {
         if(loading || loadingChoices)return@launch
+        val requestId=++curriculumRequestId
         loading=true;error=null;curriculum=null
         try {
             if(feature.key=="classrooms" && values["view"]=="day") {
@@ -55,9 +91,25 @@ import java.time.LocalDate
                 require(week in 1..60){ "所选日期不在当前课表学期内，请选择相应学期并使用按节次筛选" }
                 values["weeks"]=week.toString();values["weekdays"]=date.dayOfWeek.value.toString()
             }
-            rows=repository.query(feature,values.toMap());cachedAt=null
-        }catch(e:CancellationException){throw e}catch(e:Exception){error=e.message}finally{loading=false;completedReloads++}
+            val result=repository.query(feature,values.toMap())
+            if(requestId==curriculumRequestId){rows=result;cachedAt=null;screen=destination;failedDestination=null}
+        }catch(e:CancellationException){throw e}catch(e:Exception){if(requestId==curriculumRequestId){failedDestination=destination;error=e.message}}finally{loading=false;completedReloads++}
     } }
+    fun retry(visibleScreen:AcademicQueryScreen) {
+        if(feature.key=="cultivation" && curriculum!=null){
+            val majorId=curriculumMajorId
+            if(majorId==null){error="请重新选择培养方案";return}
+            scope.launch {
+                val requestId=++curriculumRequestId
+                loading=true;error=null
+                try{val courses=repository.curriculum(majorId)
+                    if(requestId==curriculumRequestId && curriculum!=null)curriculum=courses}
+                catch(e:CancellationException){throw e}catch(e:Exception){if(requestId==curriculumRequestId)error=e.message}
+                finally{loading=false;completedReloads++}
+            }
+        }else if(form==null || dependencyError)reload++
+        else query(failedDestination?:if(visibleScreen==AcademicQueryScreen.SearchResults)AcademicQueryScreen.SearchResults else AcademicQueryScreen.Results)
+    }
     LaunchedEffect(feature,reload) {
         loading=true;loadingForm=true;error=null
         try {
@@ -71,6 +123,10 @@ import java.time.LocalDate
             }
             if(feature.key in listOf("grades","exams","textbooks","cultivation")) {
                 rows=repository.query(feature,values.toMap());cachedAt=null
+            }
+            if(failedDestination==AcademicQueryScreen.SearchResults){
+                if(rows==null){rows=repository.query(feature,values.toMap());cachedAt=null}
+                screen=AcademicQueryScreen.SearchResults;failedDestination=null
             }
         }catch(e:CancellationException){throw e}catch(e:Exception){error=e.message}finally{loading=false;loadingForm=false;completedReloads++;formReloads++}
     }
@@ -92,21 +148,64 @@ import java.time.LocalDate
     }
     val visibleRows=curriculum?:rows
     val recordType=if(curriculum!=null)"curriculum" else feature.key
-    val records by produceState<List<Pair<JSONObject,AcademicRecord>>>(emptyList(),visibleRows,recordType) {
-        value=withContext(Dispatchers.Default){visibleRows.orEmpty().map{it to AcademicRecords.record(recordType,it)}}
+    val recordSnapshot by produceState(AcademicRecordSnapshot(null,"",emptyList()),visibleRows,recordType) {
+        val parsed=withContext(Dispatchers.Default){visibleRows.orEmpty().map{it to AcademicRecords.record(recordType,it)}}
+        value=AcademicRecordSnapshot(visibleRows,recordType,parsed)
     }
+    val records=recordSnapshot.records
+    val recordsReady=recordSnapshot.source===visibleRows && recordSnapshot.type==recordType
     val search=LocalAcademicSearch.current
-    val searchSession=remember(feature){AcademicSearchSession(feature.key,if(feature.key=="textbooks")"搜索教材" else "搜索课程")}
-    val searchable=feature.key=="textbooks" || curriculum!=null
-    DisposableEffect(search,searchable,searchSession){
-        if(searchable)search?.attach(searchSession)
-        onDispose{search?.detach(searchSession);searchSession.close()}
+    val searchPlaceholder=when(feature.key){
+        "grades"->"搜索成绩"
+        "gpa"->"搜索绩点或排名"
+        "exams"->"搜索考试"
+        "textbooks"->"搜索教材"
+        "cultivation"->if(curriculum!=null)"搜索课程" else "搜索专业"
+        else->"搜索记录"
     }
-    val keyword=if(searchable)searchSession.query.text else ""
-    val filteredRecords by produceState(records,records,keyword) {
+    val searchSession=remember(feature,searchPlaceholder){AcademicSearchSession(feature.key,searchPlaceholder)}
+    val searchable=feature.key in setOf("grades","gpa","exams","textbooks","cultivation")
+    val searchAvailable=searchable&&!loading&&!loadingChoices
+    SideEffect { searchSession.onSubmit={term->
+        // A major-to-curriculum fetch changes the search domain. Ignore an
+        // input event from the old domain until the new list is visible.
+        if(!loading&&!loadingChoices){
+            error=null;failedDestination=null
+            if(curriculum!=null){
+                curriculumKeyword=term.trim()
+                if(screen!=AcademicQueryScreen.SearchResults)curriculumSearchReturnScreen=screen
+            }else{
+                listKeyword=term.trim()
+                if(screen!=AcademicQueryScreen.SearchResults)listSearchReturnScreen=screen
+            }
+            pendingSearch=term
+        }
+    } }
+    DisposableEffect(search,searchAvailable,searchSession){
+        if(searchAvailable)search?.attach(searchSession)
+        onDispose{search?.detach(searchSession);searchSession.onSubmit=null;searchSession.close()}
+    }
+    LaunchedEffect(pendingSearch,loading,loadingChoices,rows,curriculum) {
+        if(pendingSearch!=null&&!loading&&!loadingChoices){
+            pendingSearch=null
+            if(curriculum!=null || rows!=null)screen=AcademicQueryScreen.SearchResults
+            else query(AcademicQueryScreen.SearchResults)
+        }
+    }
+    val keyword=when {
+        !searchable->""
+        searchSession.expanded->searchSession.query.text
+        pendingSearch!=null->pendingSearch.orEmpty()
+        screen==AcademicQueryScreen.SearchResults->if(curriculum!=null)curriculumKeyword else listKeyword
+        else->""
+    }
+    val filtered by produceState(AcademicFilteredRecords(emptyList(),"",emptyList()),records,keyword) {
         if(keyword.isNotBlank())delay(70)
-        value=withContext(Dispatchers.Default){records.filter{AcademicKeywordSearch.matches(it.second,keyword)}}
+        val matches=withContext(Dispatchers.Default){records.filter{AcademicKeywordSearch.matches(it.second,keyword)}}
+        value=AcademicFilteredRecords(records,keyword,matches)
     }
+    val filtering=!recordsReady || filtered.source!==records || filtered.keyword!=keyword
+    val filteredRecords=if(filtering)emptyList()else filtered.matches
     val resultsAlpha=rememberCrestoReloadAlpha(loading,completedReloads)
     val formAlpha=rememberCrestoReloadAlpha(loadingForm,formReloads)
     val errorAlpha=rememberCrestoReloadAlpha(loading||loadingChoices,error to completedReloads)
@@ -114,8 +213,18 @@ import java.time.LocalDate
     SideEffect{if(!loading&&!loadingChoices)idleError=error}
     val shownError=error?:idleError.takeIf{loading||loadingChoices}
     Box(Modifier.fillMaxSize()) {
-    GlasmioPinnedListPage(if(curriculum!=null)curriculumTitle else feature.title,bottomPadding=180.dp,onNavigateBack=close) {
-        if(curriculum==null) {
+    AnimatedContent(targetState=screen,transitionSpec={
+        fadeIn(animationSpec=spring(dampingRatio=.85f,stiffness=450f)) togetherWith
+            fadeOut(animationSpec=spring(dampingRatio=.9f,stiffness=550f))
+    },label="Academic query and results") { visibleScreen ->
+    val title=when(visibleScreen){
+        AcademicQueryScreen.Form->feature.title
+        AcademicQueryScreen.Results->"${feature.title}结果"
+        AcademicQueryScreen.Curriculum->curriculumTitle
+        AcademicQueryScreen.SearchResults->"搜索结果"
+    }
+    GlasmioPinnedListPage(title,bottomPadding=180.dp,onNavigateBack=close) {
+        if(visibleScreen==AcademicQueryScreen.Form) {
             item { GlasmioGroupedList { form?.choices?.forEach { choice -> key(choice.key) {
                 val dependent=choice.key=="zyh_id_cx"||choice.key=="lh"
                 val choiceAlpha=rememberCrestoReloadAlpha(loadingForm||(loadingChoices&&dependent),formReloads to choice.values)
@@ -147,8 +256,9 @@ import java.time.LocalDate
         }
         shownError?.let{message->item{GlasmioGroupedList(Modifier.reloadFade(errorAlpha)){
             Text(message,color=LocalGlassColors.current.destructive,modifier=Modifier.padding(16.dp))
-            GlasmioListRow("重试",onClick=if(loading||loadingChoices)null else {{if(form==null || dependencyError)reload++ else query()}})
+            GlasmioListRow("重试",onClick=if(loading||loadingChoices)null else {{retry(visibleScreen)}})
         }}}
+        if(visibleScreen!=AcademicQueryScreen.Form) {
         cachedAt?.takeIf{curriculum==null}?.let{saved->item{Text("上次查询："+java.text.DateFormat.getDateTimeInstance().format(java.util.Date(saved)),modifier=Modifier.reloadFade(resultsAlpha),style=IosTypography.caption1)}}
         if(error==null && visibleRows?.isEmpty()==true)item{Text(when(recordType){"exams"->"所选学期暂无考试安排";"grades"->"所选学期暂无成绩，请尝试其他学期";"textbooks"->"所选学期暂无教材记录";else->"暂无符合条件的记录"},style=IosTypography.body,modifier=Modifier.padding(vertical=20.dp).reloadFade(resultsAlpha))}
         if(feature.key=="exams"&&!rows.isNullOrEmpty())item{GlasmioButton(onClick={exporter.launch("Xachet-Exams.ics")},modifier=Modifier.fillMaxWidth().reloadFade(resultsAlpha)){Text("导出考试日历")}}
@@ -159,17 +269,26 @@ import java.time.LocalDate
                 ClassroomMatrixRow(row.optString("cdmc"),(0..4).map{if(row.optString("_freeSessions").contains(it.toString()))"空"else "满"},modifier=Modifier.reloadFade(resultsAlpha))
             }
         }else {
-            if(keyword.isNotBlank() && visibleRows!=null)item{Text("找到 ${filteredRecords.size} 条结果",modifier=Modifier.reloadFade(resultsAlpha),style=IosTypography.footnote)}
-            if(keyword.isNotBlank() && filteredRecords.isEmpty() && !visibleRows.isNullOrEmpty())item{Text("没有匹配的课程或教材",style=IosTypography.body,modifier=Modifier.padding(vertical=20.dp).reloadFade(resultsAlpha))}
+            if(visibleScreen==AcademicQueryScreen.SearchResults && filtering)item{Text("正在筛选…",style=IosTypography.footnote)}
+            if(visibleScreen==AcademicQueryScreen.SearchResults && !filtering && visibleRows!=null)item{Text("找到 ${filteredRecords.size} 条结果",modifier=Modifier.reloadFade(resultsAlpha),style=IosTypography.footnote)}
+            if(visibleScreen==AcademicQueryScreen.SearchResults && !filtering && filteredRecords.isEmpty() && !visibleRows.isNullOrEmpty())item{Text("没有匹配的记录",style=IosTypography.body,modifier=Modifier.padding(vertical=20.dp).reloadFade(resultsAlpha))}
             items(filteredRecords.size){index->val (row,record)=filteredRecords[index]
             GlasmioGroupedList(Modifier.reloadFade(resultsAlpha)) {
                 GlasmioListRow(record.title,showTopSeparator=false,onClick=if(recordType=="cultivation"&&row.optString("jxzxjhxx_id").isNotBlank()&&!loading){{scope.launch{
+                    val requestId=++curriculumRequestId
+                    val sourceScreen=screen
                     loading=true;error=null
-                    try{curriculum=repository.curriculum(row.getString("jxzxjhxx_id"));curriculumTitle=record.title}catch(e:CancellationException){throw e}catch(e:Exception){error=e.message}finally{loading=false;completedReloads++}
+                    try{
+                        val courses=repository.curriculum(row.getString("jxzxjhxx_id"))
+                        if(requestId!=curriculumRequestId || screen!=sourceScreen)return@launch
+                        curriculumReturnScreen=visibleScreen;curriculumTitle=record.title;curriculumMajorId=row.getString("jxzxjhxx_id");curriculum=courses;screen=AcademicQueryScreen.Curriculum
+                    }catch(e:CancellationException){throw e}catch(e:Exception){if(requestId==curriculumRequestId)error=e.message}finally{loading=false;completedReloads++}
                 }}}else null)
                 record.fields.forEach{(label,value)->GlasmioListRow(label,detail=value)}
             }
         }
+    }
+    }
     }
     }
     if(loading||loadingChoices)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}

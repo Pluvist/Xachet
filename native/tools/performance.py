@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--adb', default=str(Path(os.environ.get('LOCALAPPDATA', '')) / 'Android/Sdk/platform-tools/adb.exe'))
 parser.add_argument('--serial')
-parser.add_argument('--package', default='com.pluvist.sachet.next.benchmark')
+parser.add_argument('--package', default='com.pluvist.xachet.benchmark')
 parser.add_argument('--suite', choices=['focus', 'controls'], default='focus')
 parser.add_argument('--tag', default=datetime.datetime.now().strftime('portrait-%Y%m%d-%H%M%S'))
 args = parser.parse_args()

@@ -28,6 +28,7 @@ import java.util.IdentityHashMap
 // A later sibling may record the same public layer again before HWUI replays it.
 // Keep direct visible drawing for all attached owners of a shared capture layer.
 private val CaptureOwners = IdentityHashMap<GraphicsLayer, MutableSet<LayerBackdropNode>>()
+private val AlwaysCapture: () -> Boolean = { true }
 
 fun Modifier.layerBackdrop(backdrop: LayerBackdrop): Modifier =
     layerBackdrop(backdrop, reuseContent = false)
@@ -37,20 +38,26 @@ fun Modifier.layerBackdrop(backdrop: LayerBackdrop): Modifier =
  * content draws identically in the visible and capture scopes, including graphicsLayer reads.
  */
 fun Modifier.layerBackdrop(backdrop: LayerBackdrop, reuseContent: Boolean): Modifier =
-    this then LayerBackdropElement(backdrop, reuseContent)
+    this then LayerBackdropElement(backdrop, reuseContent, AlwaysCapture)
+
+/** Keep the capture node attached while a draw-state condition changes. */
+fun Modifier.layerBackdrop(backdrop: LayerBackdrop, reuseContent: Boolean, enabled: () -> Boolean): Modifier =
+    this then LayerBackdropElement(backdrop, reuseContent, enabled)
 
 private class LayerBackdropElement(
     val backdrop: LayerBackdrop,
     val reuseContent: Boolean,
+    val enabled: () -> Boolean,
 ) : ModifierNodeElement<LayerBackdropNode>() {
 
     override fun create(): LayerBackdropNode {
-        return LayerBackdropNode(backdrop, reuseContent)
+        return LayerBackdropNode(backdrop, reuseContent, enabled)
     }
 
     override fun update(node: LayerBackdropNode) {
         node.updateBackdrop(backdrop)
         node.reuseContent = reuseContent
+        node.enabled = enabled
         node.invalidateDraw()
     }
 
@@ -58,6 +65,7 @@ private class LayerBackdropElement(
         name = "layerBackdrop"
         properties["backdrop"] = backdrop
         properties["reuseContent"] = reuseContent
+        properties["enabled"] = enabled
     }
 
     override fun equals(other: Any?): Boolean {
@@ -66,18 +74,20 @@ private class LayerBackdropElement(
 
         if (backdrop != other.backdrop) return false
         if (reuseContent != other.reuseContent) return false
+        if (enabled !== other.enabled) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return 31 * backdrop.hashCode() + reuseContent.hashCode()
+        return (31 * backdrop.hashCode() + reuseContent.hashCode()) * 31 + enabled.hashCode()
     }
 }
 
 private class LayerBackdropNode(
     var backdrop: LayerBackdrop,
     var reuseContent: Boolean,
+    var enabled: () -> Boolean,
 ) : DrawModifierNode, GlobalPositionAwareModifierNode, Modifier.Node() {
 
     private var registeredLayer: GraphicsLayer? = null
@@ -112,6 +122,10 @@ private class LayerBackdropNode(
     }
 
     override fun ContentDrawScope.draw() {
+        if (!enabled()) {
+            drawContent()
+            return
+        }
         val layer = backdrop.graphicsLayer
         if (reuseContent && backdrop.recordsContent && CaptureOwners[layer]?.size == 1 && layer.preservesContent()) {
             // Record once, then replay the same live display list on screen. Calling

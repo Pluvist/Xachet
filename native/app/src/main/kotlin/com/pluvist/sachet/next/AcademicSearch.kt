@@ -55,7 +55,13 @@ internal class AcademicSearchSession(val route:String,val placeholder:String) {
     var query by mutableStateOf(TextFieldValue())
     var expanded by mutableStateOf(false)
     var inputCoordinates:LayoutCoordinates?=null
+    var onSubmit:((String)->Unit)?=null
     fun close(){expanded=false;query=TextFieldValue()}
+    fun submit(){
+        val keyword=query.text.trim()
+        close()
+        onSubmit?.invoke(keyword)
+    }
 }
 
 internal class AcademicSearchController {
@@ -152,9 +158,10 @@ object AcademicKeywordSearch {
 /** One owner for the accessory and search geometry; interrupted springs keep their velocity. */
 @Composable internal fun AcademicAccessoryRow(
     progress:State<Float>,docking:State<Float>,controller:AcademicSearchController,route:String?,
-    departure:State<Float>,searchEnabled:Boolean=true,
+    departure:State<Float>,searchEnabled:State<Boolean>,
     content:@Composable ()->Unit,
 ) {
+    val canSearch=searchEnabled.value
     val current=controller.forRoute(route)
     var retained by remember{mutableStateOf<AcademicSearchSession?>(null)}
     SideEffect{if(current!=null)retained=current}
@@ -169,8 +176,8 @@ object AcademicKeywordSearch {
     }}
     Layout(content={
         GlassFlightGuard(courseAlpha,content=content)
-        GlassFlightGuard(searchAlpha,modifier=if(current!=null&&searchEnabled)Modifier else Modifier.clearAndSetSemantics{}) {
-            if(session!=null)key(session){AcademicSearchInput(session,current!=null&&searchEnabled,expansion)}else Box(Modifier.fillMaxSize())
+        GlassFlightGuard(searchAlpha,modifier=if(current!=null&&canSearch)Modifier else Modifier.clearAndSetSemantics{}) {
+            if(session!=null)key(session){AcademicSearchInput(session,current!=null&&canSearch,expansion)}else Box(Modifier.fillMaxSize())
         }
     },modifier=Modifier.fillMaxSize()) { measurables,constraints->
         val width=constraints.maxWidth
@@ -218,6 +225,7 @@ object AcademicKeywordSearch {
     val focus=LocalFocusManager.current
     val keyboard=LocalSoftwareKeyboardController.current
     fun close(){session.dismiss(focus,keyboard)}
+    fun submit(){focus.clearFocus(force=true);keyboard?.hide();session.submit()}
     LaunchedEffect(session.expanded,visible){
         if(session.expanded&&visible){snapshotFlow{expansion.value}.first{it>=.96f};requester.requestFocus()}
         else {
@@ -239,8 +247,11 @@ object AcademicKeywordSearch {
                 BasicTextField(session.query,{session.query=it},enabled=visible&&session.expanded,
                     modifier=Modifier.weight(1f).focusRequester(requester),singleLine=true,
                     textStyle=IosTypography.body.copy(color=colors.content),cursorBrush=SolidColor(colors.accent),
-                    keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={keyboard?.hide()}),
+                    keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={submit()}),
                     decorationBox={inner->Box(contentAlignment=Alignment.CenterStart){if(session.query.text.isEmpty())Text(session.placeholder,style=IosTypography.body,color=colors.tertiaryContent);inner()}})
+                Box(Modifier.size(32.dp).clickable(enabled=visible&&session.expanded,onClick={submit()}),contentAlignment=Alignment.Center){
+                    SfIcon("magnifyingglass","查看搜索结果",size=18.dp,tint=colors.content)
+                }
                 Box(Modifier.size(32.dp).clickable(enabled=visible&&session.expanded,onClick={close()}),contentAlignment=Alignment.Center){
                     SfIcon("xmark","收起搜索",size=18.dp,tint=colors.content)
                 }

@@ -10,14 +10,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Bundle
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 object CourseLiveActivity {
-    const val REFRESH = "com.pluvist.sachet.next.LIVE_REFRESH"
-    const val DISMISS = "com.pluvist.sachet.next.LIVE_DISMISS"
+    const val REFRESH = "com.pluvist.xachet.LIVE_REFRESH"
+    const val DISMISS = "com.pluvist.xachet.LIVE_DISMISS"
     private const val CHANNEL = "course_live_activity"
     private const val TAG = "course_live_activity"
     internal const val ID = -1958
@@ -33,16 +32,6 @@ object CourseLiveActivity {
     fun data(context: Context): JSONObject = try {
         JSONObject(prefs(context).getString("data", "{}") ?: "{}")
     } catch (_: Exception) { JSONObject() }
-    private fun lessons(data: JSONObject): List<LiveLesson> {
-        val array = data.optJSONArray("lessons") ?: return emptyList()
-        return (0 until array.length()).mapNotNull { i ->
-            val value = array.optJSONObject(i) ?: return@mapNotNull null
-            val start = value.optLong("start"); val end = value.optLong("end")
-            val title = value.optString("title").trim()
-            if (title.isEmpty() || end <= start || start <= 0) null else LiveLesson(title,
-                value.optString("place").ifBlank { "地点待确认" }, start, end)
-        }.sortedBy { it.start }
-    }
     fun notificationsAllowed(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
         if (Build.VERSION.SDK_INT >= 24 && !manager(context).areNotificationsEnabled()) return false
@@ -52,15 +41,12 @@ object CourseLiveActivity {
     fun hasToday(context: Context): Boolean {
         val data = data(context)
         return data.optBoolean("liveActivityEnabled") && data.optBoolean("ready") &&
-            CourseTimeline.resolve(System.currentTimeMillis(), lessons(data)).phase != LiveCoursePhase.NONE
+            CourseTimeline.resolve(System.currentTimeMillis(), CourseTimeline.lessons(data)).phase != LiveCoursePhase.NONE
     }
-    fun supportsPromotion(): Boolean = Build.VERSION.SDK_INT >= 36 &&
-        NotificationManager::class.java.methods.any { it.name == "canPostPromotedNotifications" }
+    fun supportsPromotion(): Boolean = Build.VERSION.SDK_INT >= 36
     fun status(context: Context): Map<String, Any> = mapOf(
         "supported" to supportsPromotion(), "notifications" to notificationsAllowed(context),
-        "promoted" to (if (supportsPromotion()) try {
-            NotificationManager::class.java.getMethod("canPostPromotedNotifications").invoke(manager(context)) as Boolean
-        } catch (_: Exception) { false } else false),
+        "promoted" to (Build.VERSION.SDK_INT >= 36 && manager(context).canPostPromotedNotifications()),
         "exactAlarms" to (Build.VERSION.SDK_INT < 31 || alarm(context).canScheduleExactAlarms()))
 
     @Synchronized fun dismissToday(context: Context, day: String?) {
@@ -69,6 +55,10 @@ object CourseLiveActivity {
     }
 
     @Synchronized fun refresh(context: Context) {
+        // Reminders remain independent of the live-activity toggle and of today's
+        // live-card dismissal, while sharing the same offline lesson snapshot.
+        try { CourseReminder.refresh(context) }
+        catch (error: RuntimeException) { android.util.Log.w("CourseReminder", "Unable to reconcile reminders", error) }
         val now = System.currentTimeMillis()
         val data = data(context)
         val manager = manager(context)
@@ -77,7 +67,7 @@ object CourseLiveActivity {
         if (!data.optBoolean("liveActivityEnabled") || !data.optBoolean("ready") || !notificationsAllowed(context)) {
             stopCountdown(context); manager.cancel(ID); alarm(context).cancel(alarmIntent(context)); return
         }
-        val lessons = lessons(data)
+        val lessons = CourseTimeline.lessons(data)
         val state = CourseTimeline.resolve(now, lessons)
         val dismissed = prefs(context).getString("liveDismissedDay", "") == dayKey(now)
         if (dismissed || state.phase == LiveCoursePhase.NONE) { stopCountdown(context); manager.cancel(ID) }
@@ -136,13 +126,10 @@ object CourseLiveActivity {
                     null as android.graphics.drawable.Icon?, "今天不再显示", dismiss).build())
                 else builder.addAction(0, "今天不再显示", dismiss)
             }
-            // These public APIs are newer than compileSdk 35. Use public reflection
-            // and documented extras, retaining Android 5+ runtime compatibility.
+            // The native app compiles against API 37; use the public API directly
+            // behind its API-36 guard instead of repeated method enumeration.
             if (Build.VERSION.SDK_INT >= 36) {
-                val promote = CourseTimeline.promote(state, now)
-                builder.addExtras(Bundle().apply { putBoolean("android.requestPromotedOngoing", promote) })
-                try { Notification.Builder::class.java.getMethod("setRequestPromotedOngoing", Boolean::class.javaPrimitiveType)
-                    .invoke(builder, promote) } catch (_: Exception) { }
+                builder.setRequestPromotedOngoing(CourseTimeline.promote(state, now))
             }
             val notification = builder.build()
             try { manager.notify(ID, notification) } catch (_: SecurityException) { }
@@ -180,7 +167,7 @@ object CourseLiveActivity {
         val data = data(context)
         if (!data.optBoolean("liveActivityEnabled") || !data.optBoolean("ready") || !notificationsAllowed(context) ||
             prefs(context).getString("liveDismissedDay", "") == dayKey(now)) return null
-        return CourseTimeline.resolve(now, lessons(data)).current?.end
+        return CourseTimeline.resolve(now, CourseTimeline.lessons(data)).current?.end
     }
     /** A foreground notification can only be cancelled after the service detaches. */
     @Synchronized internal fun cleanupCountdown(context: Context) {
@@ -188,11 +175,10 @@ object CourseLiveActivity {
         val data = data(context)
         if (!data.optBoolean("liveActivityEnabled") || !data.optBoolean("ready") || !notificationsAllowed(context) ||
             prefs(context).getString("liveDismissedDay", "") == dayKey(now) ||
-            CourseTimeline.resolve(now, lessons(data)).phase == LiveCoursePhase.NONE) manager(context).cancel(ID)
+            CourseTimeline.resolve(now, CourseTimeline.lessons(data)).phase == LiveCoursePhase.NONE) manager(context).cancel(ID)
     }
     private fun setShortText(builder: Notification.Builder, text: String) {
         if (Build.VERSION.SDK_INT < 36) return
-        try { Notification.Builder::class.java.getMethod("setShortCriticalText", String::class.java).invoke(builder, text) }
-        catch (_: Exception) { }
+        builder.setShortCriticalText(text)
     }
 }

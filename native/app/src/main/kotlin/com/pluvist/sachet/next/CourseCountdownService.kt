@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import java.util.concurrent.Executors
 
 /** Keeps the numeric notification title current while a lesson is running.
  * The native chronometer still drives the system chip. No wake lock or ticking
@@ -30,7 +31,8 @@ class CourseCountdownService : Service() {
             val now = System.currentTimeMillis()
             if (end <= now) {
                 handler.removeCallbacks(this)
-                CourseLiveActivity.refresh(applicationContext)
+                val app = applicationContext
+                worker.execute { CourseLiveActivity.refresh(app) }
                 return
             }
             if (interactive()) notification?.let {
@@ -84,8 +86,10 @@ class CourseCountdownService : Service() {
         if (registered) unregisterReceiver(screens)
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_DETACH)
         else @Suppress("DEPRECATION") stopForeground(false)
-        CourseLiveActivity.cleanupCountdown(this)
+        val app = applicationContext
+        worker.execute { CourseLiveActivity.cleanupCountdown(app) }
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null
+    companion object { private val worker = Executors.newSingleThreadExecutor() }
 }

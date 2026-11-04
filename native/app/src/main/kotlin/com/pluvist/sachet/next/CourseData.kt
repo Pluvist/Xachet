@@ -84,6 +84,14 @@ data class CourseStatus(val current: DatedCourse?, val next: DatedCourse?, val t
 }
 
 object CourseClock {
+    /** Persist remaining actual teaching dates, including courses more than 60 days away. */
+    fun remainingTerm(courses:List<Course>,semester:LocalDate,first:LocalDate,zone:ZoneId):List<DatedCourse> =
+        courses.flatMap{course->course.weeks.map{week->
+            val start=semester.plusWeeks((week-1).toLong())
+            start.plusDays(Math.floorMod(course.weekday-start.dayOfWeek.value,7).toLong())
+        }}
+            .asSequence().filter{!it.isBefore(first)}.distinct().sorted()
+            .flatMap{date->onDate(courses,semester,date,zone).asSequence()}.toList()
     fun week(date: LocalDate, semester: LocalDate) = Math.floorDiv(ChronoUnit.DAYS.between(semester, date).toInt(), 7) + 1
     fun onDate(courses: List<Course>, semester: LocalDate, date: LocalDate, zone: ZoneId): List<DatedCourse> {
         val week = week(date, semester)

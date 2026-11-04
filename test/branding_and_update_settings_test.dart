@@ -20,7 +20,7 @@ void main() {
     });
     PackageInfo.setMockInitialValues(
         appName: 'Xachet',
-        packageName: 'com.pluvist.sachet.next.localtest',
+        packageName: 'com.pluvist.xachet.localtest',
         version: '0.10.1',
         buildNumber: '17',
         buildSignature: 'test');

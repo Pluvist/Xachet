@@ -16,8 +16,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 object CourseLiveActivity {
-    const val REFRESH = "com.pluvist.sachet.next.LIVE_REFRESH"
-    const val DISMISS = "com.pluvist.sachet.next.LIVE_DISMISS"
+    const val REFRESH = "com.pluvist.xachet.LIVE_REFRESH"
+    const val DISMISS = "com.pluvist.xachet.LIVE_DISMISS"
     private const val CHANNEL = "course_live_activity"
     private const val TAG = "course_live_activity"
     internal const val ID = -1958

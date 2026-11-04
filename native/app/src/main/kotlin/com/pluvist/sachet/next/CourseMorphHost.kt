@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.*
 import io.github.neoruaa.glasmio.core.*
 import io.github.neoruaa.glasmio.glass.*
 import io.github.neoruaa.glasmio.glass.render.backdrops.rememberLayerBackdrop
+import io.github.neoruaa.glasmio.glass.render.Backdrop
 import io.github.neoruaa.glasmio.icons.*
 import io.github.neoruaa.glasmio.ui.*
 import java.time.*
@@ -57,7 +58,7 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
 }
 
 
-@Composable internal fun CourseMorphHost(controller:CourseMorphController,thumbnail:CourseThumbnailBackdrop,status:CourseStatus,onRoutineChange:(Course,String)->Unit) {
+@Composable internal fun CourseMorphHost(controller:CourseMorphController,pageBackdrop:CourseStaticRasterBackdrop,status:CourseStatus,onRoutineChange:(Course,String)->Unit) {
     LaunchedEffect(controller.revision) {
         val existing=controller.flight
         if(existing!=null && controller.intents.desiredKey!=existing.source.key) {
@@ -70,16 +71,21 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
         controller.desired?.let{request->
             // Status expansion and companion departure observe the same accepted
             // request and start together; neither animation waits for the other.
-            // The GPU thumbnail is recorded in the same draw frame; animation
-            // starts immediately without a bitmap readback/preparation barrier.
+            // The original footer surface samples the page directly at its new
+            // bounds; there is no separate thumbnail preparation/material pass.
             val prepared=if(request.content==CourseMorphContent.Status)
                 request.copy(snapshot=controller.refreshedSource(request.snapshot.key)?:request.snapshot)else request
+            val newFlight=controller.flight==null
             val flight=controller.flight?:CourseMorphFlight(prepared).also{
                 it.captureEpoch=controller.cacheEpoch
                 controller.flight=it
             }
             controller.retargeting=false
             flight.returning=false
+            // Let the modal compose at its source bounds and finish the page
+            // capture before the first moving frame. Interrupted flights retain
+            // their velocity and resume without this extra stationary frame.
+            if(newFlight)withFrameNanos{}
             flight.progress.animateTo(1f,CourseMorphMotion.open(flight.request.content),initialVelocity=flight.resumeVelocity)
         }
     }
@@ -96,16 +102,40 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
     val flight=active?:retained?:return
     val visible=active!=null
     BackHandler(visible){controller.dismiss()}
-    val colors=LocalGlassColors.current
+    val environmentColors=LocalGlassColors.current
+    // Keep text and controls legible against each theme's panel coating.
+    val colors=if(environmentColors.isDark)environmentColors else
+        defaultGlassColors(isDark=false,accent=environmentColors.accent)
+            .copy(secondaryContent=Color.Black.copy(alpha=.72f))
+    // Keep the footer's original wash at the source and preserve the existing
+    // coating opacity while its color eases to the window's theme surface.
+    val restingMask=if(flight.request.content==CourseMorphContent.Status)
+        footerGlassAppearance(LocalGlassAppearance.current,environmentColors.isDark).frostOverlayColor
+    else LocalGlassAppearance.current.frostOverlayColor
+    val panelMask=if(environmentColors.isDark)Color(0xFF2C2C2E).copy(alpha=.75f)
+        else Color.White.copy(alpha=.78f)
+    val panelCoating=remember(flight,restingMask,panelMask){{
+        lerp(restingMask,panelMask,CourseMorphGeometry.smooth(flight.progress.value))
+    }}
     val density=LocalDensity.current
     val measurer=rememberTextMeasurer(cacheSize=48)
     val clock by produceState(Instant.now(),status.current?.end,visible){if(visible&&status.current!=null)while(true){value=Instant.now();delay(1000)}}
-    val progress=remember(flight){derivedStateOf{flight.progress.value}}
+    // Preserve the spring's velocity for interruption while preventing course
+    // cards from visibly growing beyond either endpoint on a rapid retarget.
+    val progress=remember(flight){derivedStateOf{
+        if(flight.request.content is CourseMorphContent.Lesson)flight.progress.value.coerceIn(0f,1f)
+        else flight.progress.value
+    }}
     BoxWithConstraints(Modifier.fillMaxSize().layout{node,c->
         val child=node.measure(c)
         layout(child.width,child.height){if(visible)child.place(0,0)}
     }) {
         val rootWidth=constraints.maxWidth.toFloat();val rootHeight=constraints.maxHeight.toFloat()
+        val sinkPixels=with(density){8.dp.toPx()}
+        SideEffect {
+            controller.backgroundTapPosition={position->CourseBackgroundGeometry.canonicalTap(
+                position,Size(rootWidth,rootHeight),controller.flight?.progress?.value?:0f,sinkPixels)}
+        }
         val top=WindowInsets.statusBars.getTop(density).toFloat()
         val bottom=WindowInsets.navigationBars.getBottom(density).toFloat()
         val lower=flight.request.content==CourseMorphContent.Status
@@ -160,9 +190,11 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                 }
             }
         }) {
-        Box(Modifier.fillMaxSize().drawBehind{drawRect(Color.Black.copy(alpha=(if(colors.isDark).22f else .17f)*CourseMorphGeometry.smooth(progress.value)))})
+        Box(Modifier.fillMaxSize().drawBehind{drawRect(Color.Black.copy(alpha=(if(environmentColors.isDark).24f else .16f)*CourseMorphGeometry.smooth(progress.value)))})
         val panelContent:@Composable BoxScope.()->Unit = {
-                CompositionLocalProvider(LocalGlassBackdrop provides panelBackdrop,LocalBlurBackdrop provides panelBackdrop,LocalCourseMorph provides controller,LocalMorphInteractive provides detailsInteractive) {
+                CompositionLocalProvider(LocalGlassBackdrop provides panelBackdrop,LocalBlurBackdrop provides panelBackdrop,
+                    LocalGlassColors provides colors,androidx.compose.material3.LocalContentColor provides colors.content,
+                    LocalCourseMorph provides controller,LocalMorphInteractive provides detailsInteractive) {
                     Layout(modifier=Modifier.graphicsLayer{clip=true;this.shape=RectangleShape}.then(if(detailsInteractive)Modifier else Modifier.clearAndSetSemantics{}),content={
                         Column(Modifier.fillMaxSize().graphicsLayer{alpha=CourseMorphGeometry.smooth((progress.value-.58f)/.42f)}
                             .padding(top=with(density){headerBottom.toDp()}).verticalScroll(rememberScrollState(),enabled=detailsInteractive).padding(start=24.dp,end=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
@@ -182,7 +214,7 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                                     Text("${course.interval().first}–${course.interval().second} · 第${course.first}–${course.last}节",style=IosTypography.body)
                                     Text("星期"+listOf("一","二","三","四","五","六","日")[course.weekday-1],style=IosTypography.body)
                                     Text("周次：${course.weeks.sorted().joinToString("、")}",style=IosTypography.footnote)
-                                    Text(if(course.staggered)"错峰作息"else"普通作息",style=IosTypography.body,color=colors.accent)
+                                    Text(if(course.staggered)"错峰作息"else"普通作息",style=IosTypography.body,color=colors.content)
                                     GlasmioListRow("作息安排",detail=when(course.routine){"normal"->"普通";"staggered"->"错峰";else->"按教学楼自动识别"},onClick=if(detailsInteractive){{
                                         val routine=when(course.routine){"auto"->"normal";"normal"->"staggered";else->"auto"}
                                         flight.updatedCourse=course.copy(routine=routine);onRoutineChange(course,routine)
@@ -203,14 +235,12 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                     }
                 }
         }
-        val appearance=LocalGlassAppearance.current.copy(blurRadiusMultiplier=2f,refractionAmountMultiplier=1.5f)
         Layout(content={
-            CompositionLocalProvider(LocalGlassAppearance provides appearance) {
-                // Frost is prefiltered over the entire window thumbnail once.
-                // Do not crop/reblur it in the moving control's local coordinates.
-                GlassSurface(Modifier.fillMaxSize().clickable(interactionSource=remember{MutableInteractionSource()},indication=null){},
-                    backdrop=thumbnail,shape=shape,frostRadius=0.dp,
-                    exportedBackdrop=livePanelBackdrop,style=GlassSurfaceStyle.Navigation) {
+                CompositionLocalProvider(LocalGlassColors provides colors) {
+                CourseGlassSurface(Modifier.fillMaxSize().clickable(interactionSource=remember{MutableInteractionSource()},indication=null){},
+                    backdrop=pageBackdrop,shape=shape,blurRadius=0.dp,
+                    refractionMultiplier=1.45f,
+                    coatingColorProvider=panelCoating,exportedBackdrop=livePanelBackdrop) {
                     Box(Modifier.fillMaxSize().drawWithContent {
                         drawRect(flight.source.fill.copy(alpha=flight.source.fill.alpha*(1f-CourseMorphGeometry.smooth(progress.value*1.5f))))
                         drawContent()
@@ -219,13 +249,13 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                             stroke.copy(alpha=stroke.alpha*(1f-CourseMorphGeometry.smooth(progress.value))),style=Stroke(1.dp.toPx()))
                     },content=panelContent)
                 }
-            }
+                }
         },modifier=Modifier.fillMaxSize()) {nodes,_->
             val frame=rect()
             val child=nodes.single().measure(Constraints.fixed(frame.width.toInt().coerceAtLeast(1),frame.height.toInt().coerceAtLeast(1)))
             layout(rootWidth.toInt(),rootHeight.toInt()){child.place(frame.left.toInt(),frame.top.toInt())}
         }
-        val sourceLayouts=remember(flight.source,headers){flight.source.texts.associate{source->source.id to (measurer.measure(source.value,source.style,
+        val sourceLayouts=remember(flight.source,measurer){flight.source.texts.associate{source->source.id to (measurer.measure(source.value,source.style,
             overflow=TextOverflow.Ellipsis,maxLines=source.lines,constraints=Constraints(maxWidth=source.bounds.width.toInt().coerceAtLeast(1),maxHeight=source.bounds.height.toInt().coerceAtLeast(1))))}}
         val textLayers=headers.associate{header->header.id to key(header.id){
             val sourceLayer=rememberGraphicsLayer()
@@ -280,8 +310,13 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
             .graphicsLayer{alpha=CourseMorphGeometry.smooth((progress.value-.7f)/.3f)}) {
             // Match MeiloX's regular sampled toolbar material. This explicit
             // backdrop remains necessary because the modal is outside the page host.
+            CompositionLocalProvider(LocalGlassColors provides colors,LocalGlassAppearance provides
+                courseGlassAppearance(LocalGlassAppearance.current).copy(
+                    frostOverlayColor=(if(colors.isDark)Color(0xFF48484A)else Color.White).copy(alpha=.25f),
+                    frostOverlayColorProvider=null)) {
             GlasmioIconButton(onClick=controller::dismiss,backdrop=panelBackdrop,
                 modifier=Modifier.fillMaxSize()) {SfIcon("xmark","关闭课程面板",tint=colors.content,size=18.dp)}
+            }
         }
         }
 

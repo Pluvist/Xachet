@@ -167,9 +167,10 @@ class AcademicRepository(private val context:Context) {
     private val http=AcademicHttp()
     private val sessionLock=Mutex()
     private val refreshLock=Mutex()
-    private val prefs=context.getSharedPreferences("FlutterSharedPreferences",Context.MODE_PRIVATE)
-    fun settings()=JSONObject(prefs.getString("flutter.appSettings","{}")?:"{}")
-    fun appearance()=JSONObject(prefs.getString("flutter.courseCardSettings","{}")?:"{}")
+    companion object { private val scheduleDataLock=Any() }
+    private val prefs by lazy { context.getSharedPreferences("FlutterSharedPreferences",Context.MODE_PRIVATE) }
+    fun settings()=runCatching{JSONObject(prefs.getString("flutter.appSettings","{}")?:"{}")}.getOrElse{JSONObject()}
+    fun appearance()=runCatching{JSONObject(prefs.getString("flutter.courseCardSettings","{}")?:"{}")}.getOrElse{JSONObject()}
     fun saveAppearance(value:JSONObject){check(prefs.edit().putString("flutter.courseCardSettings",value.toString()).commit()){ "保存课表外观失败" }}
     suspend fun colors():Map<String,String> = withContext(Dispatchers.IO) {
         val path=settings().optString("courseColorFilePath")
@@ -275,15 +276,18 @@ class AcademicRepository(private val context:Context) {
                 check(prefs.edit().putString("flutter.appSettings",settings.toString()).commit()) { "保存学期日期失败" }
             }
         }
-        val file=AtomicFile(File(context.filesDir,"native-schedule.json"))
-        val output=file.startWrite()
-        try { output.write(body.toByteArray()); file.finishWrite(output) } catch(error:Throwable) { file.failWrite(output); throw error }
-        publish(parsed)
+        synchronized(scheduleDataLock) {
+            val file=AtomicFile(File(context.filesDir,"native-schedule.json"))
+            val output=file.startWrite()
+            try { output.write(body.toByteArray()); file.finishWrite(output) } catch(error:Throwable) { file.failWrite(output); throw error }
+            publish(parsed)
+        }
         parsed
     } }
-    suspend fun cached():List<Course> = withContext(Dispatchers.IO) {
+    suspend fun cached():List<Course> = withContext(Dispatchers.IO) { synchronized(scheduleDataLock){cachedSnapshot()} }
+    private fun cachedSnapshot():List<Course> {
         val file=AtomicFile(File(context.filesDir,"native-schedule.json"))
-        if(file.baseFile.exists()) applyRoutines(CourseParser.fromServer(String(file.readFully()))) else {
+        return if(file.baseFile.exists()) applyRoutines(CourseParser.fromServer(String(file.readFully()))) else {
             val path=settings().optString("classScheduleFilePath")
             if(path.isBlank()) emptyList() else {
                 val legacy=File(path).canonicalFile
@@ -298,12 +302,14 @@ class AcademicRepository(private val context:Context) {
         return courses.map{it.copy(routine=overrides.optString(routineKey(it),"auto"))}
     }
     suspend fun setRoutine(course:Course,routine:String):List<Course> = withContext(Dispatchers.IO) {
+        synchronized(scheduleDataLock) {
         require(routine in setOf("auto","normal","staggered"))
         val settings=settings();val overrides=settings.optJSONObject("courseRoutineOverrides")?:JSONObject()
         if(routine=="auto")overrides.remove(routineKey(course))else overrides.put(routineKey(course),routine)
         settings.put("courseRoutineOverrides",overrides)
         check(prefs.edit().putString("flutter.appSettings",settings.toString()).commit()) { "保存作息失败" }
-        cached().also{publish(it)}
+        cachedSnapshot().also{publish(it)}
+        }
     }
     suspend fun logout()=withContext(Dispatchers.IO){sessionLock.withLock{accounts.logout()}}
     suspend fun setSetting(key:String,value:Any)=withContext(Dispatchers.IO) {
@@ -316,9 +322,11 @@ class AcademicRepository(private val context:Context) {
         val rows=JSONArray()
         courses.forEach{row->rows.put(JSONObject().put("jxb_id",row.id).put("kcmc",row.title).put("cdmc",row.place).put("xm",row.teacher)
             .put("xqj",row.weekday.toString()).put("jc","${row.first}-${row.last}节").put("zcd",row.weeks.sorted().joinToString(",")))}
-        val atomic=AtomicFile(File(context.filesDir,"native-schedule.json"));val stream=atomic.startWrite()
-        try{stream.write(JSONObject().put("kbList",rows).toString().toByteArray());atomic.finishWrite(stream)}catch(e:Throwable){atomic.failWrite(stream);throw e}
-        publish(courses);courses
+        synchronized(scheduleDataLock) {
+            val atomic=AtomicFile(File(context.filesDir,"native-schedule.json"));val stream=atomic.startWrite()
+            try{stream.write(JSONObject().put("kbList",rows).toString().toByteArray());atomic.finishWrite(stream)}catch(e:Throwable){atomic.failWrite(stream);throw e}
+            cachedSnapshot().also{publish(it)}
+        }
     }
     suspend fun transcriptTypes():List<Pair<String,String>> = authorized { account ->
         val html=http.authenticated("bysxxcx/xscjzbdy_dyXscjzbView.html?dyly=dy&time=${System.currentTimeMillis()}&gnmkdm=N558020",account.cookie,
@@ -383,12 +391,18 @@ class AcademicRepository(private val context:Context) {
     fun semester():LocalDate=settings().optString("semesterStartDate").take(10).let {
         runCatching{LocalDate.parse(it)}.getOrElse{LocalDate.now().with(java.time.DayOfWeek.MONDAY)}
     }
-    suspend fun republish(courses:List<Course>)=withContext(Dispatchers.IO){publish(courses)}
+    // Read the authoritative file under the same lock as writes: a resume callback
+    // cannot overwrite a just-refreshed notification timeline with stale UI data.
+    suspend fun republish()=withContext(Dispatchers.IO){synchronized(scheduleDataLock){publish(cachedSnapshot())}}
     private fun publish(courses:List<Course>) {
-        val data=JSONObject().put("ready",hasSchedule()).put("semester",semester().toString()).put("themeMode",settings().optInt("themeMode",0)).put("liveActivityEnabled",settings().optBoolean("isEnableCourseLiveActivity",true))
+        val settings=settings();val semester=semester()
+        val data=JSONObject().put("ready",hasSchedule()).put("semester",semester.toString()).put("themeMode",settings.optInt("themeMode",0))
+            .put("liveActivityEnabled",settings.optBoolean("isEnableCourseLiveActivity",true))
+            .put("reminderEnabled",settings.optBoolean("isEnableCourseReminders",true))
         val lessons=JSONArray(); val zone=ZoneId.systemDefault(); val first=LocalDate.now().minusDays(1)
-        for(day in 0..60) CourseClock.onDate(courses,semester(),first.plusDays(day.toLong()),zone).forEach {
-            lessons.put(JSONObject().put("title",it.course.title).put("place",it.course.place).put("start",it.start.toEpochMilli()).put("end",it.end.toEpochMilli()))
+        CourseClock.remainingTerm(courses,semester,first,zone).forEach {
+            lessons.put(JSONObject().put("title",it.course.title).put("place",it.course.place).put("start",it.start.toEpochMilli()).put("end",it.end.toEpochMilli())
+                .put("section",it.section).put("group",it.course.id))
         }
         data.put("lessons",lessons)
         check(context.getSharedPreferences("course_widget",Context.MODE_PRIVATE).edit().putString("data",data.toString()).commit()) { "无法保存课程状态" }

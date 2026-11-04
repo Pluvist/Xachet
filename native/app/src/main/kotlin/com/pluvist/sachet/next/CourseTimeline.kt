@@ -3,14 +3,28 @@ package com.pluvist.sachet.next
 import java.util.Calendar
 import java.util.TimeZone
 import java.util.Locale
+import org.json.JSONObject
 
-data class LiveLesson(val title: String, val place: String, val start: Long, val end: Long)
+data class LiveLesson(val title: String, val place: String, val start: Long, val end: Long,
+    val section: Int = 0, val group: String = "")
 enum class LiveCoursePhase { NONE, WAITING, IN_CLASS, COMPLETED }
 data class LiveCourseState(val phase: LiveCoursePhase, val today: List<LiveLesson>,
     val current: LiveLesson?, val next: LiveLesson?, val midnight: Long, val tomorrow: Long)
 
-/** Uses the exact lesson timestamps already resolved by Flutter's homepage. */
+/** Uses the same resolved section timestamps as the native homepage and widgets. */
 object CourseTimeline {
+    fun lessons(data: JSONObject): List<LiveLesson> {
+        val array = data.optJSONArray("lessons") ?: return emptyList()
+        return (0 until array.length()).mapNotNull { index ->
+            val row = array.optJSONObject(index) ?: return@mapNotNull null
+            val start = row.optLong("start"); val end = row.optLong("end")
+            val title = row.optString("title").trim()
+            if (title.isBlank() || start <= 0 || end <= start) null else LiveLesson(title,
+                row.optString("place").ifBlank { "地点待确认" }, start, end,
+                row.optInt("section"), row.optString("group"))
+        }.sortedBy { it.start }
+    }
+
     fun dayStart(time: Long, zone: TimeZone = TimeZone.getDefault()): Long =
         Calendar.getInstance(zone).apply {
             timeInMillis = time; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)

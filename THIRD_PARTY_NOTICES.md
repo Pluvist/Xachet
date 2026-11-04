@@ -6,6 +6,8 @@
 
 旧账号兼容复用 flutter_secure_storage 9.2.4 的 MIT Java 存储与加密实现，见 [来源与许可](third_party/flutter_secure_storage/SOURCES.md)。
 
+成绩单 PDF 的 Android 13/14 文字搜索使用 [PdfBox-Android 2.0.27.0](https://github.com/TomRoush/PdfBox-Android)，Copyright (c) PdfBox-Android contributors，遵循 [Apache License 2.0](https://github.com/TomRoush/PdfBox-Android/blob/master/LICENSE)。Android 15 及以上直接使用系统 PdfRenderer 文字接口。
+
 ## Sachet
 
 - 来源：https://github.com/wyvern1723/sachet

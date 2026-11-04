@@ -44,6 +44,7 @@ import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.observeReads
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.node.requireView
 import androidx.compose.ui.platform.InspectorInfo
@@ -344,6 +345,10 @@ private class DrawBackdropNode(
         }
 
     private var graphicsLayer: GraphicsLayer? = null
+    // Coalesce animated shape/tint reads with this frame's final measured size.
+    // Rebuilding immediately from onObservedReadsChanged used the previous size,
+    // then rebuilt the same filter again from draw() after layout.
+    private var effectsDirty = true
     private var atlasPasses: NativeGlassAtlasPasses? = null
     private var atlasProducerLayer: GraphicsLayer? = null
     private var atlasBackingLayer: GraphicsLayer? = null
@@ -606,7 +611,7 @@ private class DrawBackdropNode(
         val headroom = nativeGlassDisplayHeadroom(requireView())
         val headroomChanged = effectScope.nativeGlassHeadroom != headroom
         effectScope.nativeGlassHeadroom = headroom
-        if (effectScope.update(this, samplingScale(size, this)) || colorSpaceChanged || headroomChanged) {
+        if (effectScope.update(this, samplingScale(size, this)) || colorSpaceChanged || headroomChanged || effectsDirty) {
             observeEffects()
         }
 
@@ -866,10 +871,12 @@ private class DrawBackdropNode(
     }
 
     fun invalidateDrawCache() {
-        observeEffects()
+        effectsDirty = true
+        if (isAttached) invalidateDraw()
     }
 
     private fun observeEffects() {
+        effectsDirty = false
         observeReads { updateEffects() }
     }
 
@@ -888,7 +895,7 @@ private class DrawBackdropNode(
         graphicsLayer = graphicsContext.createGraphicsLayer()
         observeBackdropSource()
 
-        observeEffects()
+        invalidateDrawCache()
     }
 
     override fun onDetach() {

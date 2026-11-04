@@ -32,7 +32,7 @@ open class CourseWidgetProvider : AppWidgetProvider() {
         if (intent.action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) refresh(context)
     }
     companion object {
-        private const val REFRESH = "com.pluvist.sachet.next.WIDGET_REFRESH"
+        private const val REFRESH = "com.pluvist.xachet.WIDGET_REFRESH"
         internal fun refreshIntent(context: Context) = PendingIntent.getBroadcast(context, 772,
             Intent(context, CourseWidgetProvider::class.java).setAction(REFRESH),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

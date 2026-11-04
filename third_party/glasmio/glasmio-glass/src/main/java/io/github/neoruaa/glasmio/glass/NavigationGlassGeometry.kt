@@ -45,7 +45,8 @@ internal fun navigationGlassGeometryProfile(
         // it is shared with the native shadow profile, not a recovered CPU chooser.
         val sizeProgress = navigationGlassSizeProgress(extent)
         NavigationGlassGeometryProfile(
-            5f, min(extent * .25f, 20f), min(extent * .5f, 60f),
+            // Xachet: keep the reference lens geometry, with a lighter 1 pt frost.
+            1f, min(extent * .25f, 20f), min(extent * .5f, 60f),
             max(16f, extent * .2f), max(16f, extent * .25f), scale,
             -extent * .5f, .8f * sizeProgress, .4f * sizeProgress,
         )

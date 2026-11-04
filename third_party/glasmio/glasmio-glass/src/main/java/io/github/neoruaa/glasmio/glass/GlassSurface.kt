@@ -488,8 +488,11 @@ fun DrawScope.drawNavigationGlassMaterial(
     material: NavigationGlassMaterial? = null,
     materialTint: Color? = null,
     alpha: Float = 1f,
+    faceOpacity: Float = 1f,
 ) {
-    val opacity = alpha.coerceIn(0f, 1f)
+    val neutralFace = if ((materialTint?.alpha ?: 0f) > 0f) 1f
+        else faceOpacity.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 1f
+    val opacity = alpha.coerceIn(0f, 1f) * neutralFace
     if (opacity <= 0f) return
     if (material != null) {
         material.fills(isDark).forEach { fill ->
@@ -543,7 +546,7 @@ fun Modifier.navigationLensSourceBackground(
     pressGlow: (() -> GlassPressHighlight?)? = null,
     pressGlowBounds: ((Size) -> Rect)? = null,
 ): Modifier {
-    val recipe = NavigationMaterialRecipe.resolve(isDark, null)
+    val recipe = NavigationMaterialRecipe.resolve(isDark, null).withFaceOpacity(appearance.materialFaceOpacity)
     val sampledPressRenderer = if (Build.VERSION.SDK_INT < 36 && pressGlow != null) PressHighlightRenderer() else null
     return navigationLensSourceDropShadow(shape).drawBackdrop(
     backdrop = backdrop,
@@ -592,9 +595,13 @@ fun Modifier.navigationLensSourceBackground(
     onDrawSurface = {
         if (appearance.usesBackdrop) {
             if (innerShadows != null) innerShadows.drawMaterial(this, shape(), recipe, isDark = isDark)
-            else drawNavigationGlassMaterial(containerColor, isDark, 1f)
+            else drawNavigationGlassMaterial(containerColor, isDark, 1f, faceOpacity = appearance.materialFaceOpacity)
         } else {
             drawRect(containerColor)
+        }
+        if (appearance.usesBackdrop) {
+            val overlay = appearance.resolvedFrostOverlayColor()
+            if (overlay.alpha > 0f) drawRect(overlay)
         }
     },
     onDrawFront = pressOverlay,
@@ -722,6 +729,7 @@ internal fun Modifier.navigationGlassBackgroundResolved(
     val nativeRecipe = if (navigationMaterial && innerShadows != null && surfaceOverlay == null &&
         sampleBackdrop && appearance.usesBackdrop) {
         NavigationMaterialRecipe.resolve(darkFraction, material, prominentTint, materialTint, containerAlphaMultiplier)
+            .withFaceOpacity(appearance.materialFaceOpacity)
     } else null
     val completeNativeMaterial = nativeRecipe != null
     val surfaceHighlight = Highlight.Default.copy(
@@ -781,7 +789,7 @@ internal fun Modifier.navigationGlassBackgroundResolved(
                         materialAlpha = materialPaintAlpha, edgeAlpha = innerShadowAlpha,
                         shadow = if (dropShadow == null) navigationNativeShadowProfile(extent, material) else null,
                         shadowAlpha = shadowAlpha, highlightAlpha = surfaceHighlight.alpha,
-                        highlightAngle = highlightAngle, darkFraction = darkFraction, overlayColor=appearance.frostOverlayColor)
+                        highlightAngle = highlightAngle, darkFraction = darkFraction, overlayColor=appearance.resolvedFrostOverlayColor())
                 }
                 val completionBand = completion?.shadow?.let { (it.radius * 2f + 8f) * density + 2f } ?: 0f
                 val nativeField = if (nativeOptics || completion != null) when (surfaceShape) {
@@ -873,7 +881,8 @@ internal fun Modifier.navigationGlassBackgroundResolved(
                 surfaceOverlay()
             } else {
                 if (navigationMaterial && sampleBackdrop && appearance.usesBackdrop) {
-                    drawNavigationGlassMaterial(containerColor, isDark, containerAlphaMultiplier, material, materialTint, alpha = materialPaintAlpha)
+                    drawNavigationGlassMaterial(containerColor, isDark, containerAlphaMultiplier, material, materialTint,
+                        alpha = materialPaintAlpha, faceOpacity = appearance.materialFaceOpacity)
                 } else {
                     drawRect(
                         containerColor.copy(
@@ -887,7 +896,10 @@ internal fun Modifier.navigationGlassBackgroundResolved(
                 }
             }
             // Background carriers precede foreground content and remain in backdrop exports.
-            if(!completeNativeMaterial&&appearance.frostOverlayColor.alpha>0f)drawRect(appearance.frostOverlayColor)
+            if (!completeNativeMaterial) {
+                val overlay = appearance.resolvedFrostOverlayColor()
+                if (overlay.alpha > 0f) drawRect(overlay)
+            }
             backgroundOverlay?.invoke(this)
         },
         onDrawFront = {
@@ -1024,7 +1036,7 @@ fun GlassSurface(
                     .takeIf { emphasis == GlassEmphasis.Prominent },
                 materialTint = navigationSurfaceColor.takeIf { emphasis == GlassEmphasis.Regular },
                 alphaMultiplier = navigationSurfaceAlphaMultiplier,
-            )
+            ).withFaceOpacity(appearance.materialFaceOpacity)
         } else null
     }
     interactiveHighlight.materialIsDark = materialDark
@@ -1197,6 +1209,7 @@ fun GlassSurface(
                     drawNavigationGlassMaterial(
                         containerColor, !isLight, navigationSurfaceAlphaMultiplier, material,
                         navigationSurfaceColor.takeIf { emphasis == GlassEmphasis.Regular }, alpha,
+                        faceOpacity = appearance.materialFaceOpacity,
                     )
                 } else {
                     drawRect(

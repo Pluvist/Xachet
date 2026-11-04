@@ -4,17 +4,17 @@ An Android academic companion for Xiangtan University, maintained by **Pluvist**
 
 Starting with **0.19.78**, production uses **Kotlin / Jetpack Compose** and Kotlin academic repositories. MeiloX / Glasmio provide the liquid-glass foundation; the music accessory becomes a course-status bar. The original Flutter implementation remains as a historical behavior reference.
 
-[中文](README.md) · [Build instructions](README_DEV.md) · [Release notes](docs/releases/0.19.78.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[中文](README.md) · [Build instructions](README_DEV.md) · [Release notes](docs/releases/0.19.79.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Download
 
-**Version 0.19.78 requires Android 13 or later.**
+**Version 0.19.79 requires Android 13 or later.**
 
-- [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.78/xachet-v0.19.78-arm64-v8a.apk)
-- [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.78/xachet-v0.19.78-armeabi-v7a.apk)
-- [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.78/xachet-v0.19.78-x86_64.apk)
+- [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.79/xachet-v0.19.79-arm64-v8a.apk)
+- [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.79/xachet-v0.19.79-armeabi-v7a.apk)
+- [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.79/xachet-v0.19.79-x86_64.apk)
 
-Checksums and the certificate fingerprint are attached to the [release](https://github.com/Pluvist/Xachet/releases/latest). Production keeps `com.pluvist.sachet.next` and the existing release signature for in-place updates and compatible account/settings/cache reads. The `.localtest` preview has separate private data. Versions through 0.19.58 also used a different package identity.
+Checksums and the certificate fingerprint are attached to the [release](https://github.com/Pluvist/Xachet/releases/latest). Version 0.19.79 uses `com.pluvist.xachet` and installs separately from older `com.pluvist.sachet.next` releases. Accounts, settings, cached timetables and home-screen widgets do not migrate automatically; sign in and add widgets again. The `.localtest` preview also has separate private data.
 
 For Android 12 and earlier, use [0.19.77](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77).
 
@@ -39,7 +39,7 @@ bash native/gradlew -p native :app:assembleDebug :app:testDebugUnitTest --consol
 
 See [README_DEV.md](README_DEV.md) for signing and ABI splits. Flutter is no longer the production APK entry point. Legacy non-Android projects have not received the native migration.
 
-Native tests, builds, OnePlus interaction checks and authorized read-only queries have been exercised. See the [academic report](docs/native-academic-repair-2026-10-31.md) and [migration record](docs/meilox-migration-plan.md). The test account's textbook endpoint reports insufficient permission. Preview testing does not establish production signed-upgrade migration, and no universal frame-rate guarantee is claimed.
+Native tests, builds, OnePlus interaction checks and authorized read-only queries have been exercised in earlier native versions. See the [academic report](docs/native-academic-repair-2026-10-31.md) and [migration record](docs/meilox-migration-plan.md). The test account's textbook endpoint reports insufficient permission. The new package requires separate login; no universal frame-rate guarantee is claimed.
 
 ## License and attribution
 

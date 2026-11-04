@@ -214,16 +214,19 @@ class GlassMorphRenderer(
     internal fun paintMaterial(scope: DrawScope, isDark: Boolean, material: NavigationGlassMaterial?, alpha: Float) {
         val index = (material?.ordinal ?: 4) * 2 + if (isDark) 1 else 0
         val recipe = if (presentationDarkFraction > 0f && presentationDarkFraction < 1f)
-            NavigationMaterialRecipe.resolve(presentationDarkFraction, material)
-        else untintedRecipes[index] ?: NavigationMaterialRecipe.resolve(isDark, material).also { untintedRecipes[index] = it }
+            NavigationMaterialRecipe.resolve(presentationDarkFraction, material).withFaceOpacity(appearance.materialFaceOpacity)
+        else untintedRecipes[index] ?: NavigationMaterialRecipe.resolve(isDark, material)
+            .withFaceOpacity(appearance.materialFaceOpacity).also { untintedRecipes[index] = it }
         if (!innerShadows.paintMaterial(scope, recipe, alpha)) {
-            scope.drawNavigationGlassMaterial(Color.Transparent, isDark, material = material, alpha = alpha)
+            scope.drawNavigationGlassMaterial(Color.Transparent, isDark, material = material, alpha = alpha,
+                faceOpacity = appearance.materialFaceOpacity)
         }
     }
 
     private fun resolveRecipe(isDark: Boolean, tint: Color?, multiplier: Float): NavigationMaterialRecipe {
         if (nativeRecipe == null || nativeRecipeDark != isDark || nativeRecipeDarkFraction != presentationDarkFraction || nativeRecipeTint != tint || nativeRecipeMultiplier != multiplier) {
             nativeRecipe = NavigationMaterialRecipe.resolve(presentationDarkFraction, materialPreset, materialTint = tint, alphaMultiplier = multiplier)
+                .withFaceOpacity(appearance.materialFaceOpacity)
             nativeRecipeDarkFraction = presentationDarkFraction
             nativeRecipeDark = isDark
             nativeRecipeTint = tint
@@ -598,7 +601,7 @@ class GlassMorphRenderer(
                 outputSize = Size(bounds.width * sampleScale.x, bounds.height * sampleScale.y),
                 outputDensity = scope.density * minOf(sampleScale.x, sampleScale.y),
                 textureScale = renderScale, highlightAlpha = highlightOpacity, sourceShadow = sourceShadow,
-                overlayColor=appearance.frostOverlayColor)
+                overlayColor=appearance.resolvedFrostOverlayColor())
             val completedEffect = nativeFilterScope.completeNativeFilteredGlass(base, null, isDark,
                 materialPreset, 1f, origin = effectOrigin, field = filterField, completion = completion,
                 filteredIsNativeRaw = true)
@@ -690,7 +693,8 @@ class GlassMorphRenderer(
                         }) { drawLayer(refracted) }
                         inset(bounds.left, bounds.top, size.width - bounds.right, size.height - bounds.bottom) {
                             if (materialPaint != null) materialPaint()
-                            else if (recipe == null) drawNavigationGlassMaterial(tint, isDark, tintMultiplier, materialPreset, materialTint)
+                            else if (recipe == null) drawNavigationGlassMaterial(tint, isDark, tintMultiplier, materialPreset, materialTint,
+                                faceOpacity = appearance.materialFaceOpacity)
                         }
                         if (recipe != null) {
                             innerShadows.drawMaterial(this, shape, recipe, bounds, isDark, alpha = innerShadowProgress,

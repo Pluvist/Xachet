@@ -26,7 +26,7 @@ Linux/macOS：
 bash native/gradlew -p native :app:assembleDebug :app:testDebugUnitTest --console=plain
 ```
 
-测试包名 `com.pluvist.sachet.next.localtest`，输出在所用构建目录的 `native/app/build/outputs/apk/debug/`。优化预览可运行 `:app:assemblePreview`；`.benchmark` 供合成数据性能测试。它们均不与正式版共享私有数据。
+测试包名 `com.pluvist.xachet.localtest`，输出在所用构建目录的 `native/app/build/outputs/apk/debug/`。优化预览可运行 `:app:assemblePreview`；`.benchmark` 供合成数据性能测试。它们均不与正式版共享私有数据。
 
 ## 正式签名与三架构构建
 
@@ -54,7 +54,7 @@ XACHET_SIGNING_PROPERTIES=/private/xachet-key.properties bash native/gradlew -p 
 
 输出在 `native/app/build/outputs/apk/release/`；Windows 脚本输出在暂存目录。正式打包缺少签名配置时停止，避免误发开发签名包。不要提交密码、配置、账号或私钥。发布前检查包名、版本、标签、最低系统、架构、签名和校验和。
 
-正式包继续使用 `com.pluvist.sachet.next`；覆盖升级必须保持包名与签名一致。维护者发布私钥不在仓库中，自行构建的不同签名版本不能覆盖官方版。
+0.19.79 正式包使用 `com.pluvist.xachet`。由于包名变更，它不会覆盖旧版 `com.pluvist.sachet.next`，旧版账号、设置、课表缓存与桌面组件不会自动迁移。未来同一包名的升级仍必须保持签名一致；维护者发布私钥不在仓库中，自行构建的不同签名版本不能覆盖官方版。
 
 ## CI 与验证范围
 

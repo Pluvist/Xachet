@@ -1,5 +1,7 @@
 # Glasmio provenance
 
+Xachet scoped glass refinement (2026-11-02): `GlassAppearance.materialFaceOpacity` controls only the regular neutral face coating and keeps refraction, edge lighting and intentional prominent-action tints independent. Native completion, cached material fades and fallback paints share that setting. The host can use zero neutral coating plus its own light/dark `frostOverlayColor`; an optional `frostOverlayColorProvider` resolves that coating in draw/effect evaluation for reversible animation without per-frame composition. Regular navigation geometry uses a reduced 1 pt frost instead of the reference 5 pt; its lens geometry and the Clear preset remain unchanged.
+
 Upstream: https://github.com/NEORUAA/Glasmio
 Revision: 864e958676e38c5416d573c6affeaf4b0279be98
 License: Apache-2.0; upstream LICENSE, licenses/ and THIRD_PARTY_NOTICES.md are retained.

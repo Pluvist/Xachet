@@ -28,6 +28,14 @@ class CourseMorphTest {
         val mid=CourseMorphGeometry.curve(start,end,.5f,36f)
         assertTrue(mid.y<(start.y+end.y)/2)
     }
+    @Test fun upperCourseMovesDownWithoutAnInitialHopOrOvershoot() {
+        for(distance in listOf(12f,60f,320f)) {
+            val start=Offset(20f,300f);val end=Offset(40f,300f+distance)
+            val positions=(0..100).map{CourseMorphGeometry.curve(start,end,it/100f,36f).y}
+            assertTrue(positions.all{it in start.y..end.y})
+            assertTrue(positions.zipWithNext().all{(a,b)->b>=a})
+        }
+    }
     @Test fun elasticOvershootKeepsAValidWindow() {
         val frame=CourseMorphGeometry.frame(Rect(10f,20f,50f,80f),Rect(0f,0f,300f,400f),1.02f,36f)
         assertTrue(frame.width>300f);assertTrue(frame.height>0f)

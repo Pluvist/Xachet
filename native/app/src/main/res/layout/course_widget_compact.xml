@@ -3,7 +3,7 @@
     android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
     android:paddingTop="6dp" android:paddingBottom="6dp">
     <FrameLayout android:id="@+id/widget_surface" android:layout_width="match_parent" android:layout_height="match_parent"
-        android:background="@drawable/course_widget_dark" android:clipToOutline="true">
+        android:background="@drawable/course_widget_surface" android:clipToOutline="true">
         <ImageView android:id="@+id/widget_glow" android:layout_width="match_parent" android:layout_height="match_parent"
             android:scaleType="fitXY" android:importantForAccessibility="no" />
 <LinearLayout

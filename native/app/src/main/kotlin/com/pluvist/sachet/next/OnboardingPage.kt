@@ -60,7 +60,9 @@ import kotlinx.coroutines.launch
     var finishing by remember{mutableStateOf(false)}
     val status by rememberBackgroundSetupStatus(pager.currentPage==3&&!webLogin)
     val live=status["live"] as? Map<*,*>
-    val requestNotifications=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){}
+    val requestNotifications=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){
+        scope.launch{BackgroundSetupSettings.refreshCourses(context)}
+    }
     fun next(page:Int){scope.launch{pager.animateScrollToPage(page,animationSpec=spring(1f,300f))}}
     BackHandler(pager.currentPage>0&&!webLogin){next(pager.currentPage-1)}
     BackHandler(webLogin){webLogin=false}
@@ -119,8 +121,9 @@ import kotlinx.coroutines.launch
                         item{Text("稍后登录",style=IosTypography.callout,color=colors.secondaryContent,modifier=Modifier.heightIn(min=48.dp).clickable(enabled=!data.loading){next(3)}.padding(12.dp))}
                     }
                     3->{
-                        item{GuideInfo(Icons.Default.Notifications,"通知权限",if(status.isEmpty())"正在读取"else if(live?.get("notifications")==true)"已允许"else"点击允许课程通知",onClick={requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)})}
-                        item{GuideInfo(Icons.Default.Timer,"实时活动",if(status.isEmpty())"正在读取"else if(live?.get("promoted")==true)"已允许"else"点击打开系统通知与实时活动设置",onClick={context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,context.packageName))})}
+                        item{GuideInfo(Icons.Default.Notifications,"通知权限",if(status.isEmpty())"正在读取"else if(status["notifications"]==true)"已允许课程实时通知与课前提醒"else"点击允许课程通知",onClick={BackgroundSetupSettings.requestNotifications(context as Activity){requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)}})}
+                        item{GuideInfo(Icons.Default.Timer,"实时活动",if(status.isEmpty())"正在读取"else if(live?.get("supported")!=true)"本系统使用持续课程通知"else if(live?.get("promoted")==true)"已允许"else"点击打开实时活动设置",onClick={BackgroundSetupSettings.open(context as Activity,"live")})}
+                        item{GuideInfo(Icons.Default.Alarm,"准时提醒",if(status.isEmpty())"正在读取"else if(live?.get("exactAlarms")==true)"已允许，第 1、5 节提前 20 分钟，其他节次提前 10 分钟"else"点击允许准时更新；关闭时课前提醒可能延迟",onClick={BackgroundSetupSettings.open(context as Activity,"exactAlarms")})}
                         item{GuideInfo(Icons.Default.BatteryChargingFull,"后台运行",if(status["batteryUnrestricted"]==true)"已允许无限制运行"else"点击设置后台运行权限",onClick={BackgroundSetupSettings.open(context as Activity,"battery")})}
                         item{GuideInfo(Icons.Default.RestartAlt,"自启动","点击打开系统设置，在系统页面确认",onClick={BackgroundSetupSettings.open(context as Activity,"autostart")})}
                         item{GuideInfo(Icons.Default.Widgets,"桌面小组件","长按桌面添加 Xachet，或稍后在个人页面添加。")}

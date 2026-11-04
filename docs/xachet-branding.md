@@ -2,18 +2,23 @@
 
 The product-facing name is **Xachet**. Android/native/Flutter UI, onboarding and permission instructions, about/legal modification labels, widget names and accessibility descriptions, calendar export names/PRODID, web/iOS/desktop application titles, build-project labels, CI artifact names, packaging scripts and project documentation use the new name. The preview label is `Xachet 原生预览`.
 
-Compatibility identifiers are deliberately retained:
+From 0.19.79 the production Android application ID is `com.pluvist.xachet`, with `.localtest` and `.benchmark` test variants. This is a new installation identity: the former `com.pluvist.sachet.next` app and its private data, widgets, notification settings and system permissions are not transferred automatically. The visible app name remains Xachet.
 
-- Android application/namespace `com.pluvist.sachet.next` and its `.localtest`/`.benchmark` variants, provider/service names and broadcast actions. Keeping these identities and the signing key permits replacement installation and retains existing app/widget ownership.
-- Existing stored preferences/migration keys, including `sachet_next_migrations` and `sachetNextBlueThemeV1`, and calendar event UID suffixes. Renaming these would repeat migrations or change the identity of previously exported events.
+Internal and historical identifiers retained for compatibility within their original versions include:
+
+- Existing stored preference and migration keys, including `sachet_next_migrations` and `sachetNextBlueThemeV1`, and calendar event UID suffixes. These names remain internal to each app's data; they do not enable cross-package migration.
 - Historical asset filenames and tags. The repository is now published as `Pluvist/Xachet`; new source links and downloads use that name. Previously released binaries retain their historical filenames.
 - Upstream Sachet's original name, authorship and license text. Only Pluvist's modification label is renamed; upstream attribution remains accurate.
 
 The private Flutter widget channel is changed consistently on both ends to `xachet/course_widget`. The internal Dart library/import name is retained. Generated files, old binary releases and private test screenshots/logs are historical artifacts rather than new product labels.
 
-Validation: optimized native preview build and 82 application unit tests passed; the four targeted Flutter branding/home/onboarding/interface suites passed 66 tests. Android APK metadata reports `Xachet 原生预览` with the unchanged application ID. Replacement installation succeeded; the application UID stayed the same and the installed APK SHA-256 matches the built file. This verifies packaging/installation without launching over the phone's current foreground application. Desktop product/scheme/output references were checked for consistency but those platforms were not built on this Windows/Android setup.
+Historical 0.19.78 validation: optimized native preview build and 82 application unit tests passed; the four targeted Flutter branding/home/onboarding/interface suites passed 66 tests. Android APK metadata reported `Xachet 原生预览` with the then-unchanged application ID. Replacement installation succeeded; the application UID stayed the same and the installed APK SHA-256 matched the built file. This verified packaging/installation for that version. Desktop product/scheme/output references were checked for consistency but those platforms were not built on this Windows/Android setup.
 
 Installed preview SHA-256: `BF1D88DA6E18DB6DA8804DC5A66DE15CFA0BB6C078F4D9FD5C1C9DB843AA2178`.
+
+## 0.19.79 publication
+
+The native production application ID changes to `com.pluvist.xachet`. Release APK names use `xachet-v0.19.79-<abi>.apk`. Because the installation identity changed, the old app cannot be replaced in place and its account, settings, timetable cache and widgets do not move to this version automatically. See the [0.19.79 release notes](releases/0.19.79.md).
 
 ## 0.19.78 publication
 

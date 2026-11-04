@@ -3,18 +3,16 @@ package com.pluvist.sachet.next
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.BlurMaskFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.util.LruCache
 import android.widget.RemoteViews
 
-/** A fixed, softly blended blue/pink/cyan glow inspired by the welcome screen.
+/** An opaque theme-colored face and neutral glass rim for both widget sizes.
  * Rendered once per theme/aspect; never starts a ticker, service or extra alarm.
  */
 internal object CourseWidgetGlow {
@@ -25,7 +23,7 @@ internal object CourseWidgetGlow {
     @Synchronized private fun image(dark: Boolean, wide: Boolean, widthDp: Int, heightDp: Int): Bitmap {
         val key = "$dark/$wide/$widthDp/$heightDp"
         images.get(key)?.let { return it }
-        // Soft gradients need little resolution; keep each RemoteViews payload
+        // The optical rim needs little resolution; keep each RemoteViews payload
         // comfortably below the Binder transaction budget, even on old Android.
         val width = 384
         val height = (width * heightDp / widthDp).coerceIn(96, 512)
@@ -36,38 +34,46 @@ internal object CourseWidgetGlow {
         val outline = Path().apply { addRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()),
             28 * sx, 28 * sy, Path.Direction.CW) }
         canvas.clipPath(outline)
-        canvas.drawColor(if (dark) 0xff191b22.toInt() else 0xfff8f9fe.toInt())
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        fun glow(x: Float, y: Float, radius: Float, color: Int, alpha: Int) {
-            val cx = width * x; val cy = height * y; val r = width * radius
-            val tint = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
-            paint.shader = RadialGradient(cx, cy, r, intArrayOf(tint, tint and 0x00ffffff),
-                floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
-            canvas.drawCircle(cx, cy, r, paint)
-        }
-        // Broad overlapping gradients retain a calm central area for text.
-        glow(.1f, .9f, .70f, 0xff6674f5.toInt(), if (dark) 78 else 55)
-        glow(.96f, .77f, .66f, 0xffef89c6.toInt(), if (dark) 65 else 48)
-        glow(.64f, 1.16f, .60f, 0xff6ddbdc.toInt(), if (dark) 55 else 43)
-        glow(.88f, -.18f, .65f, 0xff91a6fc.toInt(), if (dark) 25 else 26)
-        // Directional rim like frosted glass: stronger at top-left and
-        // bottom-right, quieter elsewhere. This is part of the static bitmap.
+        // RemoteViews cannot sample and blur the live wallpaper behind them.
+        // The theme-specific drawable supplies the opaque face. Blur only the
+        // neutral optical edges here so their glow does not double the fill.
+        // Directional light and shadow evoke a refracted edge.
         val edge = Path().apply { addRoundRect(
             RectF(.7f * sx, .7f * sy, width - .7f * sx, height - .7f * sy),
             27.3f * sx, 27.3f * sy, Path.Direction.CW) }
-        val colors = if (dark) intArrayOf(0xadcdddff.toInt(), 0x386c809e, 0x143e526c, 0x8fc5ddf7.toInt())
-            else intArrayOf(0xe6ffffff.toInt(), 0x3d8b9abb, 0x1a7c8ca9, 0xb3ffffff.toInt())
-        paint.shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
-            colors, floatArrayOf(0f, .36f, .65f, 1f), Shader.TileMode.CLAMP)
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 3.5f * sx
-        paint.alpha = 80
-        paint.maskFilter = BlurMaskFilter(2f * sx, BlurMaskFilter.Blur.NORMAL)
-        canvas.drawPath(edge, paint)
-        paint.maskFilter = null
-        paint.alpha = 255
-        paint.strokeWidth = .8f * sx
-        canvas.drawPath(edge, paint)
+        if (dark) {
+            paint.shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
+                intArrayOf(0xadffffff.toInt(), 0x387f7f7f, 0x143c3c3c, 0x8cffffff.toInt()),
+                floatArrayOf(0f, .36f, .65f, 1f), Shader.TileMode.CLAMP)
+            paint.strokeWidth = 3.5f * sx
+            paint.alpha = 80
+            paint.maskFilter = BlurMaskFilter(2f * sx, BlurMaskFilter.Blur.NORMAL)
+            canvas.drawPath(edge, paint)
+            paint.maskFilter = null
+            paint.alpha = 255
+            paint.strokeWidth = .8f * sx
+            canvas.drawPath(edge, paint)
+        } else {
+            // On a white widget face a white-only rim disappears. A neutral,
+            // directional shadow and a thin reflected highlight reveal the edge.
+            paint.shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
+                intArrayOf(0x286C7A89, 0x346C7A89, 0x486C7A89, 0x3A6C7A89),
+                floatArrayOf(0f, .36f, .72f, 1f), Shader.TileMode.CLAMP)
+            paint.strokeWidth = 3.2f * sx
+            paint.maskFilter = BlurMaskFilter(2.5f * sx, BlurMaskFilter.Blur.NORMAL)
+            canvas.drawPath(edge, paint)
+            paint.maskFilter = null
+            paint.strokeWidth = 1.15f * sx
+            canvas.drawPath(edge, paint)
+
+            paint.shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
+                intArrayOf(0xb3ffffff.toInt(), 0x50ffffff, 0x00ffffff, 0x75ffffff),
+                floatArrayOf(0f, .28f, .72f, 1f), Shader.TileMode.CLAMP)
+            paint.strokeWidth = .65f * sx
+            canvas.drawPath(edge, paint)
+        }
         images.put(key, bitmap)
         return bitmap
     }

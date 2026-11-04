@@ -34,7 +34,7 @@ const String appUpdateSourceUrlUpdateSachetWyvernlabCom =
     'https://update.sachet.wyvernlab.com/latest.json';
 
 /// App 包名
-const String appPackageName = "com.pluvist.sachet.next";
+const String appPackageName = "com.pluvist.xachet";
 
 /// 当前安装包的 abi。用于检查更新时判断应该下载哪个 abi 的 apk（因为按 abi 拆分了安装包，以减小体积）
 final String abi = Abi.current().architectureName;

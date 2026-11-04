@@ -433,7 +433,9 @@ fun GlasmioToolbarActionHost(
         ) else Modifier
     }
     val materialRenderer = remember(group) { NavigationMaterialRenderer() }
-    val materialRecipe = remember(darkFraction) { NavigationMaterialRecipe.resolve(darkFraction, null) }
+    val materialRecipe = remember(darkFraction, appearance.materialFaceOpacity) {
+        NavigationMaterialRecipe.resolve(darkFraction, null).withFaceOpacity(appearance.materialFaceOpacity)
+    }
     group.nativeMaterialSource = remember(materialRecipe, appearance.reduceTransparency) {
         if (appearance.reduceTransparency) null else GlassMaterialSource(materialRecipe)
     }
@@ -450,7 +452,8 @@ fun GlasmioToolbarActionHost(
                 appearance.reduceTransparency -> drawRect(containerColor.copy(alpha = 1f), alpha = alpha)
                 material.color == null && material.sampleBackdrop && appearance.usesBackdrop -> {
                     if (!materialRenderer.draw(this, materialRecipe, alpha))
-                        drawNavigationGlassMaterial(containerColor, materialDark, material.alphaMultiplier, alpha = alpha)
+                        drawNavigationGlassMaterial(containerColor, materialDark, material.alphaMultiplier, alpha = alpha,
+                            faceOpacity = appearance.materialFaceOpacity)
                 }
                 else -> drawRect(
                     containerColor.copy(alpha = containerColor.alpha * material.alphaMultiplier.coerceAtLeast(0f)),

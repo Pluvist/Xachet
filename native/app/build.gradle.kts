@@ -14,11 +14,11 @@ android {
     namespace = "com.pluvist.sachet.next"
     compileSdk = 37
     defaultConfig {
-        applicationId = "com.pluvist.sachet.next"
+        applicationId = "com.pluvist.xachet"
         minSdk = 33
         targetSdk = 37
-        versionCode = 54
-        versionName = "0.19.78"
+        versionCode = 55
+        versionName = "0.19.79"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -33,7 +33,7 @@ android {
         debug { applicationIdSuffix = ".localtest" }
         release {
             isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),"proguard-rules.pro")
             if(releaseSigningPath!=null)signingConfig=signingConfigs.getByName("xachetRelease")
         }
         create("benchmark") {
@@ -79,6 +79,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("org.jsoup:jsoup:1.22.1")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("com.google.re2j:re2j:1.8")
     implementation("com.google.errorprone:error_prone_annotations:2.36.0")
     implementation("com.google.code.findbugs:jsr305:3.0.2")

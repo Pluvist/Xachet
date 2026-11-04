@@ -75,7 +75,7 @@ void main() {
     AppGlobal.startupPage = '/class';
     PackageInfo.setMockInitialValues(
         appName: 'Xachet',
-        packageName: 'com.pluvist.sachet.next.localtest',
+        packageName: 'com.pluvist.xachet.localtest',
         version: '0.10.1-next.2',
         buildNumber: '19',
         buildSignature: 'test');

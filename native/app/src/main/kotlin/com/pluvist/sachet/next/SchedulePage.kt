@@ -132,6 +132,8 @@ import java.time.temporal.ChronoUnit
     }
 }
 
+private val WeekAxisHeightMinutes=axisMinute(LessonTimes.end(11,false))+52f
+
 @Composable private fun WeekGrid(page:WeekCoursePage,semester:LocalDate,week:Int,style:WeekCardStyle,textMeasurer:TextMeasurer,normalAxis:TimeAxisPaints,staggeredAxis:TimeAxisPaints,dateHeader:WeekHeaderPaints,scale:Float,active:Boolean,reloadAlpha:State<Float>,modifier:Modifier=Modifier,onCourse:(Course)->Unit) {
     val colors=LocalGlassColors.current
     val interactive=LocalMorphInteractive.current
@@ -163,7 +165,7 @@ import java.time.temporal.ChronoUnit
         Row(Modifier.fillMaxSize().navigationViewport(viewport,active).verticalScroll(scroll).padding(top=8.dp,bottom=180.dp)) {
             TimeAxis(false,scale,normalAxis)
             Row(Modifier.weight(1f).horizontalScroll(daysScroll,enabled=fontScale>=1.2f)) {
-            repeat(7){day->Box(Modifier.width(dayWidth).height((740*scale).dp)) {
+            repeat(7){day->Box(Modifier.width(dayWidth).height((WeekAxisHeightMinutes*scale).dp)) {
                 Canvas(Modifier.fillMaxSize()) {
                     (1..11).forEach{section->
                         val y=(axisMinute(LessonTimes.start(section,false))*scale).dp.toPx()
@@ -177,7 +179,7 @@ import java.time.temporal.ChronoUnit
                 page.days[day].forEach { block -> key(block.course.id) {
                     val course=block.course
                     val top=block.topMinute*scale
-                    val height=(block.heightMinutes*scale).coerceAtLeast(25f)
+                    val height=block.heightMinutes*scale
                     val source=rememberCourseMorphSource("week-$week-${course.id}",style.radiusDp,style.colors.getValue(course.title),active&&interactive){CourseMorphContent.Lesson(course)}
                     SideEffect{source?.stroke=if(course.staggered)colors.accent else Color.Transparent}
                     Box(Modifier.padding(horizontal=style.margin).offset(y=top.dp).fillMaxWidth().height(height.dp).morphSource(source).graphicsLayer{alpha=if(source?.controller?.owns(source.key)==true)0f else reloadAlpha.value}
@@ -216,6 +218,25 @@ import java.time.temporal.ChronoUnit
     }
 }
 
+// Sachet's default Material shade400 course palette, in upstream order.
+// Keep title-to-color assignment stable across redraws instead of reshuffling.
+private val StandardCoursePalette=listOf(
+    Color(0xFFFFCA28), // amber400
+    Color(0xFF42A5F5), // blue400
+    Color(0xFF2979FF), // blueAccent400
+    Color(0xFFFF7043), // deepOrange400
+    Color(0xFF7E57C2), // deepPurple400
+    Color(0xFF651FFF), // deepPurpleAccent400
+    Color(0xFF9CCC65), // lightGreen400
+    Color(0xFF3D5AFE), // indigoAccent400
+    Color(0xFFFF9100), // orangeAccent400
+    Color(0xFF26C6DA), // cyan400
+    Color(0xFF66BB6A), // green400
+    Color(0xFF5C6BC0), // indigo400
+    Color(0xFFFFA726), // orange400
+    Color(0xFF26A69A), // teal400
+)
+
 @Immutable private class WeekCardStyle(appearance:org.json.JSONObject,courseColors:Map<String,String>,courses:List<Course>,defaults:androidx.compose.ui.text.TextStyle) {
     val title=defaults.merge(courseTextStyle(appearance,"Title",14f,6))
     val place=defaults.merge(courseTextStyle(appearance,"Place",11f,5))
@@ -226,7 +247,12 @@ import java.time.temporal.ChronoUnit
     val margin=appearance.optDouble("cardMargin",2.0).toFloat().coerceIn(0f,10f).dp
     val radiusDp=appearance.optDouble("cardBorderRadius",6.0).toFloat().coerceIn(0f,100f)
     val shape=G2RoundedRectangle(radiusDp.dp)
-    val colors=courses.associate{course->course.title to runCatching{Color(android.graphics.Color.parseColor(courseColors.getValue(course.title)))}.getOrElse{Color.hsv((course.title.hashCode().toLong().and(0x7fffffff)%360).toFloat(),.38f,.82f)}}
+    private val customColors=courses.map{it.title}.distinct().mapNotNull{title->
+        courseColors[title]?.let{value->runCatching{title to Color(android.graphics.Color.parseColor(value))}.getOrNull()}
+    }.toMap()
+    private val fallbackColors=courses.map{it.title}.distinct().filterNot(customColors::containsKey).sorted()
+        .mapIndexed{index,title->title to StandardCoursePalette[index%StandardCoursePalette.size]}.toMap()
+    val colors=courses.associate{course->course.title to (customColors[course.title]?:fallbackColors.getValue(course.title))}
 }
 
 private fun appearanceColor(appearance:org.json.JSONObject,key:String)=runCatching{Color(android.graphics.Color.parseColor(appearance.optString(key,"#FFFFFFFF")))}.getOrDefault(Color.White)
@@ -307,7 +333,7 @@ private class TimeAxisPaints(val number:android.graphics.Paint,val time:android.
     val timePaint=paints.time
     val labels=remember(staggered){(1..11).map{section->Triple(section,LessonTimes.start(section,staggered),LessonTimes.end(section,staggered))}}
     val description=remember(labels){labels.joinToString("；"){"第${it.first}节 ${it.second}至${it.third}"}}
-    Canvas(Modifier.width((34f*layoutScale.coerceIn(1f,1.5f)).dp).height((740*scale).dp).semantics{contentDescription=description}) {
+    Canvas(Modifier.width((34f*layoutScale.coerceIn(1f,1.5f)).dp).height((WeekAxisHeightMinutes*scale).dp).semantics{contentDescription=description}) {
         labels.forEach{(section,start,end)->
             val y=(axisMinute(start)*scale).dp.toPx()
             drawContext.canvas.nativeCanvas.apply {

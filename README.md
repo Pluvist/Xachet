@@ -8,17 +8,17 @@
 
 ## 下载
 
-**当前正式版：0.19.78，要求 Android 13 及以上。**
+**当前正式版：0.19.79，要求 Android 13 及以上。**
 
 | 架构 | 适用设备 | 下载 |
 | --- | --- | --- |
-| arm64-v8a | 大多数现代 Android 手机和平板 | [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.78/xachet-v0.19.78-arm64-v8a.apk) |
-| armeabi-v7a | 运行 Android 13+ 的 32 位 ARM 设备 | [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.78/xachet-v0.19.78-armeabi-v7a.apk) |
-| x86_64 | 64 位 x86 设备或模拟器 | [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.78/xachet-v0.19.78-x86_64.apk) |
+| arm64-v8a | 大多数现代 Android 手机和平板 | [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.79/xachet-v0.19.79-arm64-v8a.apk) |
+| armeabi-v7a | 运行 Android 13+ 的 32 位 ARM 设备 | [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.79/xachet-v0.19.79-armeabi-v7a.apk) |
+| x86_64 | 64 位 x86 设备或模拟器 | [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.79/xachet-v0.19.79-x86_64.apk) |
 
-[最新 Release](https://github.com/Pluvist/Xachet/releases/latest) 附有校验和及签名证书指纹。安装包继续使用 `com.pluvist.sachet.next` 和原正式版发布签名，支持同包名、同签名版本覆盖升级；账号、设置及课表缓存采用兼容读取。原生预览版 `.localtest` 是独立应用，数据不与正式版共享。0.19.58 及更早的不同包名版本也需要单独登录。
+[最新 Release](https://github.com/Pluvist/Xachet/releases/latest) 附有校验和及签名证书指纹。0.19.79 的包名改为 `com.pluvist.xachet`，会作为独立应用安装，无法覆盖安装使用 `com.pluvist.sachet.next` 的旧版；账号、设置、课表缓存和桌面组件不会自动迁移。请在新版重新登录并添加桌面组件。原生预览版 `.localtest` 也与正式版独立。
 
-Android 12 及更早系统可使用 [0.19.77 历史版本](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77)。验证范围与已知限制见 [发布说明](docs/releases/0.19.78.md)。
+Android 12 及更早系统可使用 [0.19.77 历史版本](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77)。验证范围与已知限制见 [发布说明](docs/releases/0.19.79.md)。
 
 ## 相比上游的主要变化
 
@@ -41,7 +41,7 @@ Android 12 及更早系统可使用 [0.19.77 历史版本](https://github.com/Pl
 
 教务功能沿用 Sachet 的业务规则，并逐项对照原 Dart 请求、参数与解析逻辑重写。已进行原生自动测试、Android 构建和 OnePlus 真机交互及账号只读查询验证。记录见 [教务实测](docs/native-academic-repair-2026-10-31.md) 和 [迁移计划](docs/meilox-migration-plan.md)。
 
-学校接口和账号权限会影响结果：测试账号的教材接口返回“无功能权限”，应用保留学校提示。原生预览版的账号测试不能代替正式签名覆盖升级的数据迁移测试；没有为所有设备承诺统一帧率。实时活动及组件刷新还受系统权限、省电策略和启动器影响。
+学校接口和账号权限会影响结果：测试账号的教材接口返回“无功能权限”，应用保留学校提示。新版包名独立，旧版账号数据不会自动进入新版；没有为所有设备承诺统一帧率。实时活动及组件刷新还受系统权限、省电策略和启动器影响。
 
 ## 构建
 

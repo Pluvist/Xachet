@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 class PackageIdentityTest {
     private val app get() = RuntimeEnvironment.getApplication() as Application
     @Test fun manifestResolvesRenamedActivityServiceAndWidget() {
-        assertTrue(app.packageName in setOf("com.pluvist.sachet.next", "com.pluvist.sachet.next.localtest"))
+        assertTrue(app.packageName in setOf("com.pluvist.xachet", "com.pluvist.xachet.localtest"))
         val manager = app.packageManager
         val main = manager.getActivityInfo(ComponentName(app, MainActivity::class.java), 0)
         assertEquals("com.pluvist.sachet.next.MainActivity", main.name)
@@ -30,8 +30,8 @@ class PackageIdentityTest {
         assertFalse(manager.getReceiverInfo(ComponentName(app, CourseLiveActivityReceiver::class.java), 0).exported)
     }
     @Test fun activityAndWidgetActionsBelongToTheNewNamespace() {
-        assertEquals("com.pluvist.sachet.next.LIVE_REFRESH", CourseLiveActivity.REFRESH)
-        assertEquals("com.pluvist.sachet.next.LIVE_DISMISS", CourseLiveActivity.DISMISS)
+        assertEquals("com.pluvist.xachet.LIVE_REFRESH", CourseLiveActivity.REFRESH)
+        assertEquals("com.pluvist.xachet.LIVE_DISMISS", CourseLiveActivity.DISMISS)
         assertEquals("com.pluvist.sachet.next.CourseWidgetProvider", CourseWidgetProvider::class.java.name)
         assertEquals("com.pluvist.sachet.next.CourseLiveActivityReceiver", CourseLiveActivityReceiver::class.java.name)
     }

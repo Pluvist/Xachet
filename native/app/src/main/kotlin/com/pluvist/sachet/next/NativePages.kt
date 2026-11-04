@@ -6,6 +6,13 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material.icons.filled.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -36,6 +43,23 @@ import org.json.JSONObject
 
 private data class HomeFeature(val key:String,val title:String,val url:String?=null)
 private val HomeCardShape=G2RoundedRectangle(24.dp)
+/** Cached neutral specular rim; it follows the card outline without tinting the surface. */
+@Composable private fun Modifier.homeGlassRim(shape:Shape=HomeCardShape):Modifier {
+    val isDark=LocalGlassColors.current.isDark
+    return drawWithCache {
+        val shadow=if(isDark)Color.Black.copy(alpha=.28f)else Color(0xFF8F949E).copy(alpha=.14f)
+        val rim=Brush.linearGradient(
+            if(isDark)listOf(Color.White.copy(alpha=.42f),Color.White.copy(alpha=.12f),Color.White.copy(alpha=.24f))
+            else listOf(Color.White.copy(alpha=.92f),Color.White.copy(alpha=.52f),Color(0xFFB4BAC4).copy(alpha=.28f)),
+            start=Offset.Zero,end=Offset(size.width,size.height))
+        val outline=shape.createOutline(size,layoutDirection,this)
+        onDrawWithContent {
+            drawContent()
+            drawOutline(outline,shadow,style=Stroke(1.5.dp.toPx()))
+            drawOutline(outline,rim,style=Stroke(.8.dp.toPx()))
+        }
+    }
+}
 private val campusNetworkFeature=HomeFeature("network","校园网认证","http://zz.xtu.edu.cn/portal/portal-main")
 private val classroomsFeature=HomeFeature("classrooms","空闲教室")
 private val homeFeatures=listOf(
@@ -73,10 +97,10 @@ private val campusLinks=listOf(
             if(row.size<columns)Spacer(Modifier.weight(1f))
         } }
         item { Text("校园服务",style=IosTypography.title3.copy(fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold),modifier=Modifier.padding(top=20.dp,bottom=6.dp)) }
-        item { GlasmioGroupedList(Modifier.clip(HomeCardShape)) {
+        item { GlasmioGroupedList(Modifier.homeGlassRim().clip(HomeCardShape)) {
             campusLinks.forEach{feature->GlasmioListRow(feature.title,minimumHeight=68.dp,leading={AppIconBadge(feature.key,compact=true)},onClick={open(feature)})}
         } }
-        item { GlasmioButton(onClick=refresh,enabled=!data.loading,modifier=Modifier.fillMaxWidth()){
+        item { GlasmioButton(onClick=refresh,enabled=!data.loading,modifier=Modifier.fillMaxWidth().homeGlassRim(G2RoundedRectangle(100.dp))){
             if(data.loading) CircularProgressIndicator(Modifier.size(20.dp)) else Text("同步课程表")
         } }
     }
@@ -84,7 +108,7 @@ private val campusLinks=listOf(
 
 @Composable private fun HomeFeatureCard(feature:HomeFeature,modifier:Modifier=Modifier,onClick:()->Unit) {
     val colors=LocalGlassColors.current
-    Row(modifier.pageOrigin(feature.key).heightIn(min=76.dp).background(colors.elevatedBackground,HomeCardShape).clip(HomeCardShape).clickable(onClick=onClick).padding(horizontal=12.dp,vertical=16.dp),verticalAlignment=Alignment.CenterVertically) {
+    Row(modifier.pageOrigin(feature.key).heightIn(min=76.dp).homeGlassRim().background(colors.elevatedBackground,HomeCardShape).clip(HomeCardShape).clickable(onClick=onClick).padding(horizontal=12.dp,vertical=16.dp),verticalAlignment=Alignment.CenterVertically) {
         AppIconBadge(feature.key);Spacer(Modifier.width(10.dp))
         Text(feature.title,style=IosTypography.callout,modifier=Modifier.weight(1f))
     }
@@ -94,7 +118,7 @@ private val campusLinks=listOf(
     val colors=LocalGlassColors.current
     val fontScale=LocalGlasmioLayoutFontScale.current.coerceAtLeast(1f)
     Row(Modifier.fillMaxWidth().height((210f*fontScale).dp),horizontalArrangement=Arrangement.spacedBy(13.dp)) {
-        Box(Modifier.weight(1f).fillMaxHeight().reloadFade(courseAlpha).background(colors.elevatedBackground,HomeCardShape).clip(HomeCardShape)) {
+        Box(Modifier.weight(1f).fillMaxHeight().reloadFade(courseAlpha).homeGlassRim().background(colors.elevatedBackground,HomeCardShape).clip(HomeCardShape)) {
             androidx.compose.material3.Icon(
                 if(status.current!=null||status.next!=null)androidx.compose.material.icons.Icons.Default.DirectionsRun else androidx.compose.material.icons.Icons.Default.CheckCircleOutline,
                 null,Modifier.align(Alignment.BottomEnd).offset(20.dp,20.dp).size(126.dp),
@@ -110,7 +134,7 @@ private val campusLinks=listOf(
             }
         }
         Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(9.75.dp)) {
-            Column(Modifier.weight(1.15f).fillMaxWidth().reloadFade(courseAlpha).background(colors.elevatedBackground,HomeCardShape).padding(start=12.dp,end=12.dp,top=14.dp,bottom=4.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1.15f).fillMaxWidth().reloadFade(courseAlpha).homeGlassRim().background(colors.elevatedBackground,HomeCardShape).padding(start=12.dp,end=12.dp,top=14.dp,bottom=4.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
                 Text("下一节课",style=IosTypography.footnote,color=colors.secondaryContent)
                 Text(status.next?.course?.title?:"暂无下一节课",style=IosTypography.headline,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 status.next?.let{Text("${it.startTime()}–${it.endTime()}",style=IosTypography.footnote,color=colors.secondaryContent);Text(it.course.place,style=IosTypography.footnote,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)}
@@ -170,19 +194,32 @@ private val campusLinks=listOf(
 
 @Composable internal fun PermissionPage(back:()->Unit) {
     val context=LocalContext.current
+    val scope=rememberCoroutineScope()
     val status by rememberBackgroundSetupStatus()
     val live=status["live"] as? Map<*,*>
-    val permission=androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()){}
+    val reminders=status["reminders"] as? Map<*,*>
+    val permission=androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()){
+        scope.launch{BackgroundSetupSettings.refreshCourses(context)}
+    }
     GlasmioPinnedListPage("后台与通知",bottomPadding=170.dp,onNavigateBack=back) {
         item{GlasmioGroupedList{
-            listOf("notifications" to "通知权限","live" to "实时活动","battery" to "后台运行","autostart" to "自启动").forEach{(key,label)->
-                val detail=if(status.isEmpty())"正在读取"else when(key){"notifications"->if(live?.get("notifications")==true)"已允许" else "未允许";"battery"->if(status["batteryUnrestricted"]==true)"无限制" else "受系统管理";"autostart"->"在系统页面确认";else->if(live?.get("promoted")==true)"已允许" else "在系统页面确认"}
+            listOf("notifications" to "通知权限","liveNotifications" to "课程实时通知","live" to "实时活动提升显示",
+                "reminders" to "课前提醒通知","exactAlarms" to "准时提醒","battery" to "后台运行","autostart" to "自启动").forEach{(key,label)->
+                val detail=if(status.isEmpty())"正在读取"else when(key){
+                    "notifications"->if(status["notifications"]==true)"已允许" else "未允许"
+                    "liveNotifications"->if(live?.get("notifications")==true)"已允许" else "未允许"
+                    "reminders"->if(reminders?.get("notifications")==true)"已允许" else "未允许"
+                    "exactAlarms"->if(live?.get("exactAlarms")==true)"已允许" else "未允许，提醒可能延迟"
+                    "battery"->if(status["batteryUnrestricted"]==true)"无限制" else "受系统管理"
+                    "autostart"->"在系统页面确认"
+                    else->if(live?.get("supported")!=true)"使用持续课程通知" else if(live?.get("promoted")==true)"已允许" else "未允许"
+                }
                 GlasmioListRow(label,detail=detail,onClick={
-                    if(key=="notifications")permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    else if(key=="live")context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,context.packageName))
+                    if(key=="notifications")BackgroundSetupSettings.requestNotifications(context as android.app.Activity){permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)}
                     else BackgroundSetupSettings.open(context as android.app.Activity,key)
                 })
             }
         }}
+        item{Text("课前提醒：第 1、5 节提前 20 分钟，其他节次提前 10 分钟。准时提醒权限关闭时，系统可能延迟通知；可在设置中独立关闭课前提醒。",style=IosTypography.footnote,color=LocalGlassColors.current.secondaryContent,modifier=Modifier.padding(16.dp))}
     }
 }

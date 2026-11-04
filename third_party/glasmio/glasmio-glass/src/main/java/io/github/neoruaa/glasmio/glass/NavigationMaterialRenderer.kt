@@ -31,11 +31,12 @@ internal data class NavigationMaterialRecipe(
     val overlay: Color?,
     val darkFraction: Float = 0f,
     val appearanceAlternate: NavigationMaterialRecipe? = null,
+    val faceOpacity: Float = 1f,
 ) {
     fun matches(other: NavigationMaterialRecipe?): Boolean = other != null &&
         nativeFace == other.nativeFace && automaticSize == other.automaticSize && saturation == other.saturation && black == other.black &&
         white == other.white && faceFill == other.faceFill && luminanceRollOff == other.luminanceRollOff &&
-        fills == other.fills && tint == other.tint && overlay == other.overlay && darkFraction == other.darkFraction &&
+        fills == other.fills && tint == other.tint && overlay == other.overlay && darkFraction == other.darkFraction && faceOpacity == other.faceOpacity &&
         (appearanceAlternate?.matches(other.appearanceAlternate) ?: (other.appearanceAlternate == null)) &&
         (tintMatrix?.contentEquals(other.tintMatrix) ?: (other.tintMatrix == null))
 
@@ -86,6 +87,27 @@ internal data class NavigationMaterialRecipe(
     }
 }
 
+/** Scope clear regular glass without changing the material's optical/edge recipe.
+ * Prominent actions and explicitly tinted controls retain their contrast-bearing paint. */
+internal fun NavigationMaterialRecipe.withFaceOpacity(multiplier: Float): NavigationMaterialRecipe {
+    val opacity = if (tint != null || (overlay?.alpha ?: 0f) > 0f) 1f
+        else multiplier.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 1f
+    val alternate = appearanceAlternate?.withFaceOpacity(multiplier)
+    return if (faceOpacity == opacity && alternate === appearanceAlternate) this
+        else copy(faceOpacity = opacity, appearanceAlternate = alternate)
+}
+
+internal fun navigationMaterialFaceAlpha(recipe: NavigationMaterialRecipe?, alpha: Float): Float =
+    if (recipe == null) 0f else alpha.coerceIn(0f, 1f) * recipe.faceOpacity
+
+/** Cache-only alpha updates must preserve the scoped face setting, including theme blends. */
+internal fun updateNavigationMaterialOpacityUniforms(
+    recipe: NavigationMaterialRecipe?, opacity: Float, set: (String, FloatArray) -> Unit,
+) {
+    set("materialOpacity", floatArrayOf(navigationMaterialFaceAlpha(recipe, opacity)))
+    set("appearance_materialOpacity", floatArrayOf(navigationMaterialFaceAlpha(recipe?.appearanceAlternate ?: recipe, opacity)))
+}
+
 /**
  * Cached material program. Modern HWUI can consume the destination directly; older HWUI applies
  * the identical function to the already sampled backdrop with a RenderEffect.
@@ -119,8 +141,7 @@ internal class NavigationMaterialRenderer {
         if (!recipe.matches(effectRecipe) || effectOpacity != alpha || cachedEffect == null) {
             if (!recipe.matches(effectRecipe)) updateNavigationMaterialUniforms(recipe, alpha, shader::setFloatUniform)
             else {
-                shader.setFloatUniform("materialOpacity", alpha)
-                shader.setFloatUniform("appearance_materialOpacity", alpha)
+                updateNavigationMaterialOpacityUniforms(recipe, alpha, shader::setFloatUniform)
             }
             cachedEffect = RenderEffect.createRuntimeShaderEffect(shader, "content")
             effectRecipe = recipe
@@ -151,8 +172,7 @@ internal class NavigationMaterialRenderer {
             if (!value.matches(recipe) || opacity != nextOpacity) {
                 if (!value.matches(recipe)) updateNavigationMaterialUniforms(value, nextOpacity, blender::setFloatUniform)
                 else {
-                    blender.setFloatUniform("materialOpacity", nextOpacity)
-                    blender.setFloatUniform("appearance_materialOpacity", nextOpacity)
+                    updateNavigationMaterialOpacityUniforms(value, nextOpacity, blender::setFloatUniform)
                 }
                 // Paint snapshots the builder here. Updating uniforms alone does not reinstall it.
                 paint.xfermode = blender
@@ -181,7 +201,7 @@ private fun updateNavigationMaterialEndpointUniforms(
     opacity: Float,
     set: (String, FloatArray) -> Unit,
 ) {
-    set("materialOpacity", floatArrayOf(if (recipe == null) 0f else opacity.coerceIn(0f, 1f)))
+    set("materialOpacity", floatArrayOf(navigationMaterialFaceAlpha(recipe, opacity)))
     set("face", floatArrayOf(recipe?.saturation ?: 1f, recipe?.black ?: 0f, recipe?.white ?: 1f,
         if (recipe?.nativeFace == true) 1f else 0f))
     val fill = recipe?.faceFill ?: Color.Transparent

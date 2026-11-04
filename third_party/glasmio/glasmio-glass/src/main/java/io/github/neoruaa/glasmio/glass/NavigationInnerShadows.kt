@@ -100,8 +100,7 @@ class NavigationInnerShadowRenderer(
             effectHighlightClearFraction != highlightFraction || cachedEffect == null) {
             if (recipeChanged || programChanged) updateNavigationMaterialUniforms(scoped, opacity, effectShader::setFloatUniform)
             else {
-                effectShader.setFloatUniform("materialOpacity", opacity)
-                effectShader.setFloatUniform("appearance_materialOpacity", opacity)
+                updateNavigationMaterialOpacityUniforms(scoped, opacity, effectShader::setFloatUniform)
             }
             if (nextGeometry != null && geometryChanged) prepareGeometry(effectShader, nextGeometry, sourceField)
             sourceField?.configure?.invoke(effectShader)

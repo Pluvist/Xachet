@@ -42,6 +42,16 @@ class AcademicKeywordSearchTest {
         session.query=TextFieldValue("math");session.expanded=true;session.close()
         assertEquals("",session.query.text);assertFalse(session.expanded)
     }
+    @Test fun submitKeepsTheKeywordForTheResultPageBeforeClearingTheEditor() {
+        val session=AcademicSearchSession("grades","搜索成绩")
+        var submitted:String?=null
+        session.onSubmit={submitted=it}
+        session.query=TextFieldValue("  高等数学  ");session.expanded=true
+        session.submit()
+        assertEquals("高等数学",submitted)
+        assertEquals("",session.query.text)
+        assertFalse(session.expanded)
+    }
     @Test fun expandedSearchOnAnotherRouteCannotDimOrInterceptTheCurrentPage() {
         val controller=AcademicSearchController()
         val session=AcademicSearchSession("cultivation","搜索课程")

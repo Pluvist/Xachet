@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- No real app ViewModel/network work: keep the isolated device probe visible. -->
+        <activity
+            android:name="com.pluvist.sachet.next.NotificationProbeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    </application>
+    <!-- Self-instrumentation exists only in the isolated synthetic benchmark APK. -->
+    <instrumentation
+        android:name="com.pluvist.sachet.next.NotificationDeliveryProbe"
+        android:targetPackage="com.pluvist.xachet.benchmark"
+        android:label="Synthetic course notification checks" />
+</manifest>

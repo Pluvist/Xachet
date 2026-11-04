@@ -3,16 +3,30 @@ package com.pluvist.sachet.next
 import androidx.compose.runtime.Immutable
 import java.time.LocalTime
 
-/** Piecewise timeline: real minutes within teaching periods, compressed long breaks. */
+/**
+ * Only compress time that is free in the union of the normal and staggered schedules.
+ * Keeping every possible lesson interval at 1:1 makes both axes and course bars share
+ * one monotonic coordinate system, including courses in different buildings.
+ */
+private data class EmptyTeachingGap(val start:Int,val end:Int,val displayMinutes:Int)
+
+private val emptyTeachingGaps=listOf(
+    EmptyTeachingGap(9*60+50,10*60+20,10),
+    EmptyTeachingGap(12*60+10,14*60,14),
+    EmptyTeachingGap(15*60+50,16*60+20,10),
+    EmptyTeachingGap(18*60+10,19*60+15,14),
+    EmptyTeachingGap(20*60,20*60+10,6),
+    EmptyTeachingGap(20*60+55,21*60+5,6),
+)
+
 internal fun axisMinute(time:LocalTime):Float {
     val minute=time.hour*60+time.minute
-    return when {
-        minute<=730 -> (minute-480).toFloat()
-        minute<840 -> 250f+(minute-730)*.15f
-        minute<=1090 -> 266.5f+minute-840
-        minute<1155 -> 516.5f+(minute-1090)*.25f
-        else -> 532.75f+minute-1155
+    var coordinate=(minute-8*60).toFloat()
+    for(gap in emptyTeachingGaps) {
+        val elapsed=(minute-gap.start).coerceIn(0,gap.end-gap.start)
+        coordinate-=elapsed*(1f-gap.displayMinutes.toFloat()/(gap.end-gap.start))
     }
+    return coordinate
 }
 
 @Immutable internal data class WeekCourseBlock(val course:Course,val topMinute:Float,val heightMinutes:Float)
