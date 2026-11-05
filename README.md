@@ -2,7 +2,7 @@
 
 面向湘潭大学的 Android 教务应用，基于 [Sachet](https://github.com/wyvern1723/sachet) 二次开发，由 **Pluvist** 修改与维护。感谢上游作者 **wyvern1723** 的开发与开源贡献。
 
-**0.19.78 起采用 Kotlin / Jetpack Compose 原生界面和 Kotlin 教务服务**。以 MeiloX / Glasmio 的液态玻璃交互为基础，将音乐活动栏改为课程状态栏，保留错峰课表、教务查询、离线缓存、课程实时活动和桌面组件。原 Flutter 实现留作历史与行为对照。
+**0.19.78 起采用 Kotlin / Jetpack Compose 原生界面和 Kotlin 教务服务**。参考了 MeiloX / Glasmio 的液态玻璃交互，新增课程状态栏，保留错峰课表、教务查询、离线缓存、课程实时活动和桌面组件。原 Flutter 实现留作历史与行为对照。
 
 [English](README_EN.md) · [构建说明](README_DEV.md) · [修改记录](CHANGELOG.md) · [AGPL-3.0](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md)
 
