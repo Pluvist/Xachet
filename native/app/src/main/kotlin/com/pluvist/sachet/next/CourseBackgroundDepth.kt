@@ -43,9 +43,9 @@ internal data class CourseBackgroundCaptureKey(
     val density:Float,
     val fontScale:Float,
 )
-/** One click-time GPU capture of the page, blurred at quarter resolution.
- * The retained layer excludes the scrim, modal and footer. Sharing it with the
- * panel avoids an asynchronous GPU readback and a later material switch. */
+/** One click-time GPU capture of the page at quarter resolution.
+ * The panel applies its own frost to this sharp capture; the background depth
+ * pass uses a separate blurred replay of the same pixels. */
 internal data class CourseBackgroundRaster(val key:CourseBackgroundCaptureKey,val layer:GraphicsLayer)
 
 /** Read [current] inside the backdrop draw callback. */
@@ -64,11 +64,12 @@ internal data class CourseBackgroundRaster(val key:CourseBackgroundCaptureKey,va
     rasterState:CourseBackgroundRasterState=remember{CourseBackgroundRasterState()},
 ):Modifier {
     val softened=rememberGraphicsLayer()
+    val panelCapture=rememberGraphicsLayer()
     val softenedReplay=rememberGraphicsLayer()
     val softenedBlend=rememberGraphicsLayer()
     val sampler=remember{MultiSampleBlurRenderer()}
     DisposableEffect(rasterState){onDispose{rasterState.current=null}}
-    return remember(progress,captureEpoch,sceneRevision,pageLayer,softened,softenedReplay,softenedBlend,sampler,rasterState) {
+    return remember(progress,captureEpoch,sceneRevision,pageLayer,panelCapture,softened,softenedReplay,softenedBlend,sampler,rasterState) {
         Modifier.drawWithCache {
             var recordedEpoch=Int.MIN_VALUE
             val sampleScale=.25f
@@ -78,6 +79,8 @@ internal data class CourseBackgroundRaster(val key:CourseBackgroundCaptureKey,va
             val smallSize=IntSize(ceil(size.width*sampleScale).toInt().coerceAtLeast(1),ceil(size.height*sampleScale).toInt().coerceAtLeast(1))
             softened.compositingStrategy=CompositingStrategy.Offscreen
             softened.alpha=1f
+            panelCapture.compositingStrategy=CompositingStrategy.Offscreen
+            panelCapture.renderEffect=null
             softenedReplay.compositingStrategy=CompositingStrategy.Offscreen
             softenedReplay.renderEffect=null
             softenedBlend.compositingStrategy=CompositingStrategy.Offscreen
@@ -94,11 +97,12 @@ internal data class CourseBackgroundRaster(val key:CourseBackgroundCaptureKey,va
                         // The page is already retained for the footer's glass.
                         // Reuse that display list instead of recording the full
                         // schedule a second time on the opening frame.
-                        softened.record(smallSize){scale(sampleScale,sampleScale,Offset.Zero){drawLayer(pageLayer)}}
+                        panelCapture.record(smallSize){scale(sampleScale,sampleScale,Offset.Zero){drawLayer(pageLayer)}}
+                        softened.record(smallSize){drawLayer(panelCapture)}
                         softenedReplay.record(smallSize){drawLayer(softened)}
                         softenedBlend.record(smallSize){drawLayer(softenedReplay)}
                         recordedEpoch=epoch
-                        rasterState.current=CourseBackgroundRaster(key,softenedReplay)
+                        rasterState.current=CourseBackgroundRaster(key,panelCapture)
                     }
                     if(fraction<=.001f)drawLayer(pageLayer)else {
                         withTransform({

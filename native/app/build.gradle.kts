@@ -17,8 +17,8 @@ android {
         applicationId = "com.pluvist.xachet"
         minSdk = 33
         targetSdk = 37
-        versionCode = 55
-        versionName = "0.19.79"
+        versionCode = 56
+        versionName = "0.19.80"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

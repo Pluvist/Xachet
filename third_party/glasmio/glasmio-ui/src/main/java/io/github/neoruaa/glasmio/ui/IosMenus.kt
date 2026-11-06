@@ -13,6 +13,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
@@ -67,6 +68,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
@@ -232,6 +234,7 @@ fun GlasmioContextMenu(
     morphSourceUsesShadowLift: Boolean = true,
     morphSourceUsesInnerShadows: Boolean = true,
     morphSourceNativeMaterial: GlassMaterialSource? = null,
+    contentPadding: androidx.compose.ui.unit.Dp = 10.dp,
     content: @Composable ColumnScope.(LayerBackdrop) -> Unit,
 ) {
     if (!visible) return
@@ -262,6 +265,8 @@ fun GlasmioContextMenu(
             (0.5f - startOrigin.pivotFractionY) * originProgress,
     )
     val appearance = LocalGlassAppearance.current
+    val flyDistanceX = with(LocalDensity.current) { 10.dp.toPx() }
+    val flyDistanceY = with(LocalDensity.current) { 18.dp.toPx() }
     val innerShadows = rememberNavigationInnerShadows(true)
     val pressProgress = remember(interactiveHighlight) {
         derivedStateOf { interactiveHighlight.pressProgress }
@@ -306,6 +311,12 @@ fun GlasmioContextMenu(
         translationY = resolvedMenuScale * transitionScale * (
             dragTranslationY + (1f - dragScaleY) * (startPivotY - transitionPivotY)
         ) + (1f - resolvedMenuScale) * (startPivotY - transitionPivotY)
+        // Travel toward the trigger while shrinking and blurring. The same spring
+        // drives this offset in both directions, so an interrupted close reverses
+        // from its current position and velocity.
+        val flight = (1f - animationProgress).coerceIn(-0.2f, 1.2f)
+        translationX += flyDistanceX * flight
+        translationY += (if (opensAbove) flyDistanceY else -flyDistanceY) * flight
     }
     // Stable full-size host: keep overshoot margins on both the growth and anchor sides in the
     // measured Popup bounds. The original visual host is nested inside it, so this only enlarges
@@ -373,6 +384,7 @@ fun GlasmioContextMenu(
                         sourceNativeMaterial = morphSourceNativeMaterial,
                         materialContext = materialContext,
                         shaderPrograms = morphShaderPrograms,
+                        contentPadding = contentPadding,
                         menuScale = menuScale,
                         transformOrigin = startOrigin,
                         highlight = interactiveHighlight,
@@ -400,9 +412,9 @@ fun GlasmioContextMenu(
                             layerBlock = menuLayerBlock,
                         )
                         .then(interactiveHighlight.modifier)
-                        .then(interactiveHighlight.gestureModifier)
+                        .then(if (LocalIosPopupMenuInteractive.current) interactiveHighlight.gestureModifier else Modifier)
                         .clip(menuShape)
-                        .padding(10.dp)
+                        .padding(contentPadding)
                         .graphicsLayer { alpha = contentAlpha.coerceIn(0f, 1f) },
                 ) {
                     ProvideGlassMaterialContext(materialContext) {
@@ -446,6 +458,7 @@ fun GlasmioMenu(
     anchor: @Composable (onClick: () -> Unit) -> Unit,
     morphFromAnchor: Boolean = true,
     viewportBounds: Rect? = null,
+    contentPadding: androidx.compose.ui.unit.Dp = 10.dp,
     content: @Composable ColumnScope.(LayerBackdrop, close: () -> Unit) -> Unit,
 ) {
     var anchorSize by remember { mutableStateOf(IntSize.Zero) }
@@ -746,10 +759,16 @@ fun GlasmioMenu(
                 ) {
                     // The dismiss target is a sibling so it never merges submenu pane semantics.
                     Box(
-                        Modifier.matchParentSize().clickable(
+                        Modifier.matchParentSize().then(if (expanded) Modifier.clickable(
                             interactionSource = null,
                             indication = null,
-                        ) { onExpandedChange(false) },
+                        ) { onExpandedChange(false) } else if (resolvedFullScreen) Modifier.pointerInput(sourceAnchor) {
+                            detectTapGestures { position ->
+                                // A tap on the original trigger during collapse reopens
+                                // the same live spring instead of waiting for disposal.
+                                if (sourceAnchor.bounds?.contains(position) == true) onExpandedChange(true)
+                            }
+                        } else Modifier),
                     )
                     CompositionLocalProvider(LocalIosPopupMenuInteractive provides expanded) {
                         // Wide cascading menus exceed the platform Popup's measured width.
@@ -791,6 +810,7 @@ fun GlasmioMenu(
                             morphSourceUsesInnerShadows = sourceAnchor.sourceUsesInnerShadows,
                             morphSourceNativeMaterial = sourceAnchor.sourceNativeMaterial,
                             morphShaderPrograms = sourceAnchor.shaderPrograms,
+                            contentPadding = contentPadding,
                             onMorphReady = { target ->
                                 if (usesMorph) measuredMorphTarget = target
                                 surfaceReady = true
@@ -873,7 +893,7 @@ fun <T> GlasmioPopUpButton(
     }
 }
 
-/** [rowHeight] overrides the complete row height, including subtitle or explicit title lines. */
+/** [rowHeight] overrides the complete row height, including subtitle or wrapped title lines. */
 @Composable
 fun GlasmioMenuItem(
     title: String,
@@ -888,10 +908,25 @@ fun GlasmioMenuItem(
     subtitle: String? = null,
     rowHeight: androidx.compose.ui.unit.Dp? = null,
     trailing: (@Composable () -> Unit)? = null,
+    reserveLeadingIconSpace: Boolean = true,
+    textScale: Float = 1f,
+    maxTitleLines: Int = 1,
 ) {
     val scope = rememberCoroutineScope()
     val interactive = LocalIosPopupMenuInteractive.current
     val highlight = remember(scope) { InteractiveHighlight(scope) }
+    val titleStyle = IosTypography.body.let { style ->
+        if (textScale == 1f) style else style.copy(
+            fontSize = style.fontSize * textScale,
+            lineHeight = style.lineHeight * textScale,
+        )
+    }
+    val subtitleStyle = MaterialTheme.typography.bodySmall.let { style ->
+        if (textScale == 1f) style else style.copy(
+            fontSize = style.fontSize * textScale,
+            lineHeight = style.lineHeight * textScale,
+        )
+    }
     Row(
         modifier
             .fillMaxWidth()
@@ -916,23 +951,24 @@ fun GlasmioMenuItem(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Fixed-width gutter keeps every title's left edge aligned, whether or not the
-        // row shows a checkmark (iOS context-menu alignment).
-        Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
-            if (systemName != null) {
-                SfIcon(systemName, null, size = 20.dp, tint = iconTint ?: if (destructive) LocalGlassColors.current.destructive else LocalGlassColors.current.content)
+        if (reserveLeadingIconSpace || systemName != null) {
+            // Keep titles aligned across rows when their icon is optional.
+            Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
+                if (systemName != null) {
+                    SfIcon(systemName, null, size = 20.dp, tint = iconTint ?: if (destructive) LocalGlassColors.current.destructive else LocalGlassColors.current.content)
+                }
             }
+            Spacer(Modifier.width(12.dp))
         }
-        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                title, style = IosTypography.body,
-                fontWeight = fontWeight, maxLines = if ('\n' in title) 2 else 1, overflow = TextOverflow.Ellipsis,
+                title, style = titleStyle,
+                fontWeight = fontWeight, maxLines = maxOf(maxTitleLines, if ('\n' in title) 2 else 1), overflow = TextOverflow.Ellipsis,
                 color = if (destructive) LocalGlassColors.current.destructive else LocalGlassColors.current.content,
             )
             subtitle?.let {
                 Text(
-                    it, style = MaterialTheme.typography.bodySmall,
+                    it, style = subtitleStyle,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = LocalGlassColors.current.secondaryContent,
                 )

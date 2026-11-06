@@ -32,4 +32,18 @@ class WeekCourseIndexTest {
         assertTrue(index[60].days.all{it.isEmpty()})
         assertEquals(10f,index[1].days[2].single().topMinute,0f)
     }
+    @Test fun bucketsKeepInputOrderAndIgnoreOccurrencesOutsideTheVisibleTerm() {
+        val courses=listOf(
+            Course("second","后节次但先导入","一教","",7,7,8,linkedSetOf(60,1,0,61)),
+            Course("first","先节次但后导入","逸夫楼","",7,1,2,linkedSetOf(1,60,-1)),
+            Course("invalid-day","无效星期","一教","",8,1,2,setOf(1,60)),
+            Course("empty","无教学周","一教","",1,1,2,emptySet()))
+        val index=WeekCourseIndex(courses)
+        for(week in listOf(1,60)) {
+            assertEquals(listOf("second","first"),index[week].days[6].map{it.course.id})
+            assertTrue(index[week].days.take(6).all{it.isEmpty()})
+        }
+        assertTrue(index[2].days.all{it.isEmpty()})
+        assertSame(index[1].days[6][0],index[60].days[6][0])
+    }
 }

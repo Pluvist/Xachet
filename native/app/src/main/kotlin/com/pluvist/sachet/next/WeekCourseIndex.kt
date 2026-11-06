@@ -34,13 +34,24 @@ internal fun axisMinute(time:LocalTime):Float {
 
 /** Build once per schedule revision, rather than filtering/parsing during a pager drag. */
 internal class WeekCourseIndex(courses:List<Course>) {
-    private val blocks=courses.map { course ->
-        val (start,end)=course.interval()
-        val top=axisMinute(start)
-        WeekCourseBlock(course,top,axisMinute(end)-top)
-    }
-    private val pages=List(60) { page ->
-        WeekCoursePage(List(7) { day -> blocks.filter{it.course.weekday==day+1&&page+1 in it.course.weeks} })
+    private val pages:List<WeekCoursePage> = run {
+        val buckets=Array(60){arrayOfNulls<MutableList<WeekCourseBlock>>(7)}
+        // Visit each scheduled occurrence once, retaining the input order and
+        // sharing the same prepared block between all of its teaching weeks.
+        courses.forEach { course ->
+            val (start,end)=course.interval()
+            val top=axisMinute(start)
+            val block=WeekCourseBlock(course,top,axisMinute(end)-top)
+            if(course.weekday in 1..7)course.weeks.forEach { week ->
+                if(week in 1..60) {
+                    val days=buckets[week-1]
+                    val day=course.weekday-1
+                    val entries=days[day]?:ArrayList<WeekCourseBlock>().also{days[day]=it}
+                    entries.add(block)
+                }
+            }
+        }
+        List(60){week->WeekCoursePage(List(7){day->buckets[week][day]?.toList()?:emptyList()})}
     }
     operator fun get(week:Int)=pages[week-1]
 }

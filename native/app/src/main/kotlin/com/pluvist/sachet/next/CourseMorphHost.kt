@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import kotlin.math.ceil
+import kotlin.math.floor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
@@ -37,17 +38,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import io.github.neoruaa.glasmio.core.*
 import io.github.neoruaa.glasmio.glass.*
+import io.github.neoruaa.glasmio.glass.LiquidMenuMorphFrame
 import io.github.neoruaa.glasmio.glass.render.backdrops.rememberLayerBackdrop
 import io.github.neoruaa.glasmio.glass.render.Backdrop
 import io.github.neoruaa.glasmio.icons.*
 import io.github.neoruaa.glasmio.ui.*
 import java.time.*
 
-private class MorphCornerSize(val progress:State<Float>,val from:Float):androidx.compose.foundation.shape.CornerSize {
-    override fun toPx(shapeSize:Size,density:Density):Float=with(density){(from+(NavigationBarSurfaceHeight.value/2f-from)*progress.value.coerceIn(0f,1f)).dp.toPx()}
-}
-internal fun courseMorphShape(progress:State<Float>,from:Float):Shape {
-    val corner=MorphCornerSize(progress,from)
+internal fun coursePanelGlassShape(radiusPx:()->Float,density:Density):G2RoundedRectangle {
+    // Resolve the live radius in outline/draw, rather than recomposing the entire
+    // detail page on every spring frame. Convert through dp so reduced-resolution
+    // glass captures use the same corner curvature as the full-size surface.
+    val sourceDensity=density.density
+    val corner=object:androidx.compose.foundation.shape.CornerSize {
+        override fun toPx(shapeSize:Size,density:Density):Float =
+            radiusPx()/sourceDensity*density.density
+    }
     return G2RoundedRectangle(corner,corner,corner,corner)
 }
 private data class MorphHeader(val id:String,val text:String,val style:TextStyle,val bounds:Rect,val layout:TextLayoutResult)
@@ -55,6 +61,17 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
     var sourceLayout:TextLayoutResult?=null
     var targetLayout:TextLayoutResult?=null
     var sourceScale=0f
+}
+
+private data class CourseGlassGeometry(val bounds:Rect,val radius:Float) {
+    fun contains(point:Offset):Boolean {
+        if(!bounds.contains(point))return false
+        val r=radius.coerceAtMost(minOf(bounds.width,bounds.height)/2f)
+        val cx=point.x.coerceIn(bounds.left+r,bounds.right-r)
+        val cy=point.y.coerceIn(bounds.top+r,bounds.bottom-r)
+        val dx=point.x-cx;val dy=point.y-cy
+        return dx*dx+dy*dy<=r*r
+    }
 }
 
 
@@ -107,16 +124,7 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
     val colors=if(environmentColors.isDark)environmentColors else
         defaultGlassColors(isDark=false,accent=environmentColors.accent)
             .copy(secondaryContent=Color.Black.copy(alpha=.72f))
-    // Keep the footer's original wash at the source and preserve the existing
-    // coating opacity while its color eases to the window's theme surface.
-    val restingMask=if(flight.request.content==CourseMorphContent.Status)
-        footerGlassAppearance(LocalGlassAppearance.current,environmentColors.isDark).frostOverlayColor
-    else LocalGlassAppearance.current.frostOverlayColor
-    val panelMask=if(environmentColors.isDark)Color(0xFF2C2C2E).copy(alpha=.75f)
-        else Color.White.copy(alpha=.78f)
-    val panelCoating=remember(flight,restingMask,panelMask){{
-        lerp(restingMask,panelMask,CourseMorphGeometry.smooth(flight.progress.value))
-    }}
+    val footerAppearance=footerGlassAppearance(LocalGlassAppearance.current,environmentColors.isDark)
     val density=LocalDensity.current
     val measurer=rememberTextMeasurer(cacheSize=48)
     val clock by produceState(Instant.now(),status.current?.end,visible){if(visible&&status.current!=null)while(true){value=Instant.now();delay(1000)}}
@@ -141,6 +149,20 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
         val lower=flight.request.content==CourseMorphContent.Status
         val emptyPanel=if(lower)status.today.isEmpty() else (flight.request.content as? CourseMorphContent.Day)?.lessons?.isEmpty()==true
         val target=remember(rootWidth,rootHeight,top,bottom,lower,emptyPanel,density){coursePanelTarget(rootWidth,rootHeight,top,bottom,lower,emptyPanel,density)}
+        val targetRadius=with(density){(NavigationBarSurfaceHeight.value/2f).dp.toPx()}
+        // Use the menu's live spring channels for the glass silhouette. Keep the
+        // existing scalar spring for the fixed-size content, text flight and page
+        // depth, so those children are never stretched with the liquid contour.
+        LaunchedEffect(flight,controller.revision,target,targetRadius,density.density) {
+            val motion=flight.liquidMotion
+            if(!motion.initialized)motion.initialize(flight.source.bounds,target,targetRadius,density.density)
+            else motion.updateTarget(target,targetRadius)
+            val opening=controller.desired?.snapshot?.key==flight.source.key&&!flight.returning
+            motion.animateTo(opening)
+        }
+        LaunchedEffect(flight,flight.source) {
+            if(flight.liquidMotion.initialized)flight.liquidMotion.updateSource(flight.source.bounds)
+        }
         val livePanelBackdrop=rememberLayerBackdrop()
         val panelBackdrop=livePanelBackdrop
         val content=flight.updatedCourse?.let{CourseMorphContent.Lesson(it)}?:flight.request.content
@@ -166,18 +188,39 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
             }
         }}
         val headerBottom=(headers.lastOrNull()?.bounds?.bottom?:target.top)-target.top+with(density){12.dp.toPx()}
-        val detailsInteractive by remember(flight){derivedStateOf{progress.value>.82f&&!flight.returning}}
-        val shape=remember(flight.source.radiusDp,progress){
-            courseMorphShape(progress,flight.source.radiusDp)
+        val detailsInteractive by remember(flight){derivedStateOf{
+            progress.value>.82f&&flight.liquidMotion.frame.contentProgress>.82f&&!flight.returning
+        }}
+        val sourceRadius=if(lower)flight.source.bounds.height/2f else with(density){flight.source.radiusDp.dp.toPx()}
+        val geometry=remember(flight,sourceRadius){derivedStateOf{
+            val frame=if(flight.liquidMotion.initialized)flight.liquidMotion.frame else
+                LiquidMenuMorphFrame(flight.source.bounds,sourceRadius,sourceRadius,0f,0f)
+            // The menu's independent springs still drive position, size and corner
+            // correction. A single rounded glass face replaces the Gaussian union
+            // field, which could leave the settled panel looking like an oval.
+            val t=CourseMorphGeometry.smooth(frame.contentProgress)
+            val source=flight.source.bounds
+            fun blend(a:Float,b:Float)=a+(b-a)*t
+            val incoming=frame.bounds
+            val moving=Rect(blend(source.left,incoming.left),blend(source.top,incoming.top),
+                blend(source.right,incoming.right),blend(source.bottom,incoming.bottom))
+            val bounds=Rect(floor(moving.left),floor(moving.top),ceil(moving.right),ceil(moving.bottom))
+            CourseGlassGeometry(bounds,blend(sourceRadius,minOf(frame.radiusX,frame.radiusY)))
+        }}
+        // Express the moving corner in dp. The footer material downsamples its
+        // effect texture; a fixed pixel CornerSize becomes an oversized oval there.
+        val shape=remember(geometry,density){coursePanelGlassShape({geometry.value.radius},density)}
+        fun rect()=geometry.value.bounds
+        fun containsGlass(point:Offset):Boolean {
+            return geometry.value.contains(point)
         }
-        fun rect()=CourseMorphGeometry.frame(flight.source.bounds,target,progress.value,with(density){36.dp.toPx()})
         Box(Modifier.fillMaxSize().pointerInput(controller,flight,target){
             awaitEachGesture {
                 val down=awaitFirstDown(requireUnconsumed=false,pass=PointerEventPass.Initial)
                 // Decide once at DOWN. An opening/open panel cannot turn this
                 // same tap into another open after its dismissal starts.
                 val allowRetarget=flight.returning
-                val intercept=allowRetarget||!rect().contains(down.position)
+                val intercept=allowRetarget||!containsGlass(down.position)
                 if(intercept)down.consume()
                 var moved=false
                 do {
@@ -193,6 +236,7 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
         Box(Modifier.fillMaxSize().drawBehind{drawRect(Color.Black.copy(alpha=(if(environmentColors.isDark).24f else .16f)*CourseMorphGeometry.smooth(progress.value)))})
         val panelContent:@Composable BoxScope.()->Unit = {
                 CompositionLocalProvider(LocalGlassBackdrop provides panelBackdrop,LocalBlurBackdrop provides panelBackdrop,
+                    LocalAnchoredMenuBackdrop provides pageBackdrop,
                     LocalGlassColors provides colors,androidx.compose.material3.LocalContentColor provides colors.content,
                     LocalCourseMorph provides controller,LocalMorphInteractive provides detailsInteractive) {
                     Layout(modifier=Modifier.graphicsLayer{clip=true;this.shape=RectangleShape}.then(if(detailsInteractive)Modifier else Modifier.clearAndSetSemantics{}),content={
@@ -215,10 +259,17 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                                     Text("星期"+listOf("一","二","三","四","五","六","日")[course.weekday-1],style=IosTypography.body)
                                     Text("周次：${course.weeks.sorted().joinToString("、")}",style=IosTypography.footnote)
                                     Text(if(course.staggered)"错峰作息"else"普通作息",style=IosTypography.body,color=colors.content)
-                                    GlasmioListRow("作息安排",detail=when(course.routine){"normal"->"普通";"staggered"->"错峰";else->"按教学楼自动识别"},onClick=if(detailsInteractive){{
-                                        val routine=when(course.routine){"auto"->"normal";"normal"->"staggered";else->"auto"}
-                                        flight.updatedCourse=course.copy(routine=routine);onRoutineChange(course,routine)
-                                    }}else null)
+                                    AnchoredGlassChoiceRow(
+                                        title="作息安排",
+                                        detail=when(course.routine){"normal"->"普通";"staggered"->"错峰";else->"按教学楼自动识别"},
+                                        options=listOf("auto" to "按教学楼自动识别","normal" to "普通","staggered" to "错峰"),
+                                        selected=course.routine,
+                                        enabled=detailsInteractive,
+                                        onSelect={routine->
+                                            flight.updatedCourse=course.copy(routine=routine)
+                                            onRoutineChange(course,routine)
+                                        },
+                                    )
                                 }
                                 is CourseMorphContent.Day->{
                                     if(content.lessons.isEmpty())Text("当日无课喵~",style=IosTypography.body)
@@ -228,19 +279,28 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                         }
                     }){nodes,_->
                         val child=nodes.single().measure(Constraints.fixed(target.width.toInt(),target.height.toInt()))
-                        val frame=rect()
-                        layout(frame.width.toInt().coerceAtLeast(1),frame.height.toInt().coerceAtLeast(1)){
-                            child.place((target.left-frame.left).toInt(),(target.top-frame.top).toInt())
+                        // The target content keeps its final physical size throughout
+                        // the morph; only the parent glass outline changes size.
+                        val panelFrame=geometry.value.bounds
+                        layout(panelFrame.width.toInt().coerceAtLeast(1),panelFrame.height.toInt().coerceAtLeast(1)){
+                            child.place((target.left-panelFrame.left).toInt(),(target.top-panelFrame.top).toInt())
                         }
                     }
                 }
         }
         Layout(content={
-                CompositionLocalProvider(LocalGlassColors provides colors) {
+                CompositionLocalProvider(LocalGlassColors provides colors,
+                    LocalGlassAppearance provides footerAppearance) {
+                // Keep the footer's material, adding a neutral coat only while
+                // the course or status panel grows away from its source bar.
+                val restingCoating=footerAppearance.resolvedFrostOverlayColor()
+                val expandedCoating=if(colors.isDark)Color.Black else Color.White
                 CourseGlassSurface(Modifier.fillMaxSize().clickable(interactionSource=remember{MutableInteractionSource()},indication=null){},
-                    backdrop=pageBackdrop,shape=shape,blurRadius=0.dp,
-                    refractionMultiplier=1.45f,
-                    coatingColorProvider=panelCoating,exportedBackdrop=livePanelBackdrop) {
+                    backdrop=pageBackdrop,shape=shape,blurRadius=2.dp,exportedBackdrop=livePanelBackdrop,
+                    coatingColorProvider=if(content is CourseMorphContent.Day)null else {{
+                        expandedCoating.copy(alpha=.06f*CourseMorphGeometry.smooth(progress.value))
+                            .compositeOver(restingCoating)
+                    }}) {
                     Box(Modifier.fillMaxSize().drawWithContent {
                         drawRect(flight.source.fill.copy(alpha=flight.source.fill.alpha*(1f-CourseMorphGeometry.smooth(progress.value*1.5f))))
                         drawContent()
@@ -251,9 +311,9 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                 }
                 }
         },modifier=Modifier.fillMaxSize()) {nodes,_->
-            val frame=rect()
-            val child=nodes.single().measure(Constraints.fixed(frame.width.toInt().coerceAtLeast(1),frame.height.toInt().coerceAtLeast(1)))
-            layout(rootWidth.toInt(),rootHeight.toInt()){child.place(frame.left.toInt(),frame.top.toInt())}
+            val panelFrame=geometry.value.bounds
+            val child=nodes.single().measure(Constraints.fixed(panelFrame.width.toInt().coerceAtLeast(1),panelFrame.height.toInt().coerceAtLeast(1)))
+            layout(rootWidth.toInt(),rootHeight.toInt()){child.place(panelFrame.left.toInt(),panelFrame.top.toInt())}
         }
         val sourceLayouts=remember(flight.source,measurer){flight.source.texts.associate{source->source.id to (measurer.measure(source.value,source.style,
             overflow=TextOverflow.Ellipsis,maxLines=source.lines,constraints=Constraints(maxWidth=source.bounds.width.toInt().coerceAtLeast(1),maxHeight=source.bounds.height.toInt().coerceAtLeast(1))))}}
@@ -303,7 +363,9 @@ private class MorphHeaderLayers(val source:GraphicsLayer,val target:GraphicsLaye
                 }
             }
         }
-        val reveal by remember(flight){derivedStateOf{progress.value>.78f}}
+        val reveal by remember(flight){derivedStateOf{
+            progress.value>.78f&&flight.liquidMotion.frame.contentProgress>.78f
+        }}
         if(reveal)Box(Modifier.offset{IntOffset(target.left.toInt(),target.top.toInt())}.width(with(density){target.width.toDp()})
             .height(with(density){headerBottom.toDp()}).semantics{contentDescription=headers.joinToString("，"){it.text}})
         if(reveal)Box(Modifier.offset{IntOffset((target.right-52.dp.toPx()).toInt(),(target.top+16.dp.toPx()).toInt())}.size(36.dp)

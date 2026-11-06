@@ -10,6 +10,7 @@ import androidx.compose.ui.layout.*
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.toSize
+import io.github.neoruaa.glasmio.glass.LiquidMenuMorphMotion
 import java.time.LocalDate
 import kotlin.math.*
 
@@ -46,6 +47,9 @@ internal class MorphIntentQueue {
 internal class CourseMorphFlight(val request:MorphRequest) {
     var source by mutableStateOf(request.snapshot)
     val progress=Animatable(0f)
+    // The menu's independent springs shape the single glass surface. The existing
+    // progress still drives the fixed-size details, flying titles, and page depth.
+    val liquidMotion=LiquidMenuMorphMotion()
     var resumeVelocity=0f
     var returning by mutableStateOf(false)
     var updatedCourse by mutableStateOf((request.content as? CourseMorphContent.Lesson)?.course)

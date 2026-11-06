@@ -146,12 +146,18 @@ private fun AcademicSearchSession.dismiss(focus:FocusManager,keyboard:SoftwareKe
 }
 
 object AcademicKeywordSearch {
+    private val whitespace=Regex("\\s+")
     private fun normalize(value:String)=Normalizer.normalize(value,Normalizer.Form.NFKC).lowercase(Locale.ROOT)
+    internal fun terms(query:String):List<String> = normalize(query).trim().split(whitespace).filter{it.isNotEmpty()}
+    /** Build once per response, rather than normalizing every record on every keystroke. */
+    internal fun searchableText(record:AcademicRecord):String = normalize(buildString {
+        append(record.title)
+        record.fields.forEach{append('\n');append(it.second)}
+    })
+    internal fun matchesPrepared(text:String,terms:List<String>):Boolean = terms.all{text.contains(it)}
     fun matches(record:AcademicRecord,query:String):Boolean {
-        val words=normalize(query).trim().split(Regex("\\s+")).filter{it.isNotEmpty()}
-        if(words.isEmpty())return true
-        val text=normalize((listOf(record.title)+record.fields.map{it.second}).joinToString("\n"))
-        return words.all{text.contains(it)}
+        val terms=terms(query)
+        return terms.isEmpty()||matchesPrepared(searchableText(record),terms)
     }
 }
 

@@ -28,8 +28,18 @@ open class CourseWidgetProvider : AppWidgetProvider() {
         refresh(context)
     }
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) refresh(context)
+        when (intent.action) {
+            // The framework dispatches each of these to one refreshing callback.
+            // Calling refresh again afterward regenerated every widget twice.
+            AppWidgetManager.ACTION_APPWIDGET_UPDATE,
+            AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED,
+            AppWidgetManager.ACTION_APPWIDGET_DISABLED,
+            AppWidgetManager.ACTION_APPWIDGET_RESTORED -> super.onReceive(context, intent)
+            // Enabled/deleted callbacks have no additional work in these providers.
+            // Reconcile boot, clock and custom events directly; this also collapses
+            // the framework's combined enable/update event to one refresh.
+            else -> refresh(context)
+        }
     }
     companion object {
         private const val REFRESH = "com.pluvist.xachet.WIDGET_REFRESH"

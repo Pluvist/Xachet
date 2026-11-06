@@ -10,11 +10,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.Text
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
 import io.github.neoruaa.glasmio.core.*
 import io.github.neoruaa.glasmio.glass.*
 import io.github.neoruaa.glasmio.scaffold.*
@@ -22,12 +30,15 @@ import io.github.neoruaa.glasmio.ui.*
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 private enum class AcademicQueryScreen { Form, Results, Curriculum, SearchResults }
+private enum class GradeTab { Overview, Records }
 private data class AcademicRecordSnapshot(
     val source:List<JSONObject>?,
     val type:String,
     val records:List<Pair<JSONObject,AcademicRecord>>,
+    val searchTexts:List<String> = emptyList(),
 )
 private data class AcademicFilteredRecords(
     val source:List<Pair<JSONObject,AcademicRecord>>,
@@ -48,7 +59,7 @@ private data class AcademicFilteredRecords(
     var loadingChoices by remember(feature){mutableStateOf(false)}
     var error by remember(feature){mutableStateOf<String?>(null)}
     var cachedAt by remember(feature){mutableStateOf<Long?>(null)}
-    var picker by remember(feature){mutableStateOf<String?>(null)}
+    var examMenu by remember(feature){mutableStateOf(false)}
     var reload by remember(feature){mutableIntStateOf(0)}
     var completedReloads by remember(feature){mutableIntStateOf(0)}
     var dependencyError by remember(feature){mutableStateOf(false)}
@@ -57,6 +68,7 @@ private data class AcademicFilteredRecords(
     // straight into results. Their filters remain one Back action away.
     var screen by remember(feature){mutableStateOf(if(feature.key in setOf("grades","exams","textbooks","cultivation"))
         AcademicQueryScreen.Results else AcademicQueryScreen.Form)}
+    var gradeTab by remember(feature){mutableStateOf(GradeTab.Overview)}
     var listSearchReturnScreen by remember(feature){mutableStateOf(AcademicQueryScreen.Form)}
     var curriculumSearchReturnScreen by remember(feature){mutableStateOf(AcademicQueryScreen.Curriculum)}
     var curriculumReturnScreen by remember(feature){mutableStateOf(AcademicQueryScreen.Results)}
@@ -66,6 +78,9 @@ private data class AcademicFilteredRecords(
     var failedDestination by remember(feature){mutableStateOf<AcademicQueryScreen?>(null)}
     var curriculumRequestId by remember(feature){mutableIntStateOf(0)}
     val scope=rememberCoroutineScope()
+    val examNow by produceState(LocalDateTime.now(),feature.key){
+        if(feature.key=="exams")while(true){delay(30_000);value=LocalDateTime.now()}
+    }
     val context=LocalContext.current
     val close:()->Unit={curriculumRequestId++;when(screen) {
         AcademicQueryScreen.SearchResults->{screen=if(curriculum!=null)curriculumSearchReturnScreen else listSearchReturnScreen;error=null}
@@ -113,8 +128,17 @@ private data class AcademicFilteredRecords(
     LaunchedEffect(feature,reload) {
         loading=true;loadingForm=true;error=null
         try {
-            if(reload==0)repository.cachedQuery(feature)?.let{cached->rows=cached.rows;values.putAll(cached.parameters);cachedAt=cached.savedAt}
+            if(reload==0)repository.cachedQuery(feature)?.let{cached->
+                if(feature.key!="grades" || (cached.parameters["xnm"].isNullOrBlank() &&
+                    cached.parameters["xqm"].isNullOrBlank() && cached.parameters["kcbj"]=="1")) {
+                    rows=cached.rows;cachedAt=cached.savedAt
+                }
+                if(feature.key!="grades")values.putAll(cached.parameters)
+            }
             form=repository.form(feature)
+            if(feature.key=="grades"){
+                values["xnm"]="";values["xqm"]="";values["kcbj"]="1"
+            }
             form!!.choices.forEach{choice->if(choice.values.none{it.first==values[choice.key]})values[choice.key]=choice.selected}
             if(feature.key=="classrooms") {
                 values.putIfAbsent("weeks",CourseClock.week(LocalDate.now(),repository.semester()).coerceIn(1,60).toString())
@@ -149,10 +173,13 @@ private data class AcademicFilteredRecords(
     val visibleRows=curriculum?:rows
     val recordType=if(curriculum!=null)"curriculum" else feature.key
     val recordSnapshot by produceState(AcademicRecordSnapshot(null,"",emptyList()),visibleRows,recordType) {
-        val parsed=withContext(Dispatchers.Default){visibleRows.orEmpty().map{it to AcademicRecords.record(recordType,it)}}
-        value=AcademicRecordSnapshot(visibleRows,recordType,parsed)
+        value=withContext(Dispatchers.Default){
+            val parsed=visibleRows.orEmpty().map{it to AcademicRecords.record(recordType,it)}
+            AcademicRecordSnapshot(visibleRows,recordType,parsed,parsed.map{AcademicKeywordSearch.searchableText(it.second)})
+        }
     }
     val records=recordSnapshot.records
+    val searchTexts=recordSnapshot.searchTexts
     val recordsReady=recordSnapshot.source===visibleRows && recordSnapshot.type==recordType
     val search=LocalAcademicSearch.current
     val searchPlaceholder=when(feature.key){
@@ -177,6 +204,7 @@ private data class AcademicFilteredRecords(
             }else{
                 listKeyword=term.trim()
                 if(screen!=AcademicQueryScreen.SearchResults)listSearchReturnScreen=screen
+                if(feature.key=="grades")gradeTab=GradeTab.Records
             }
             pendingSearch=term
         }
@@ -199,9 +227,15 @@ private data class AcademicFilteredRecords(
         screen==AcademicQueryScreen.SearchResults->if(curriculum!=null)curriculumKeyword else listKeyword
         else->""
     }
-    val filtered by produceState(AcademicFilteredRecords(emptyList(),"",emptyList()),records,keyword) {
+    val filtered by produceState(AcademicFilteredRecords(emptyList(),"",emptyList()),recordSnapshot,keyword) {
         if(keyword.isNotBlank())delay(70)
-        val matches=withContext(Dispatchers.Default){records.filter{AcademicKeywordSearch.matches(it.second,keyword)}}
+        val terms=AcademicKeywordSearch.terms(keyword)
+        val matches=if(terms.isEmpty())records else withContext(Dispatchers.Default){
+            records.filterIndexed{index,_->
+                if(index%64==0)ensureActive()
+                AcademicKeywordSearch.matchesPrepared(searchTexts[index],terms)
+            }
+        }
         value=AcademicFilteredRecords(records,keyword,matches)
     }
     val filtering=!recordsReady || filtered.source!==records || filtered.keyword!=keyword
@@ -219,18 +253,63 @@ private data class AcademicFilteredRecords(
     },label="Academic query and results") { visibleScreen ->
     val title=when(visibleScreen){
         AcademicQueryScreen.Form->feature.title
-        AcademicQueryScreen.Results->"${feature.title}结果"
+        AcademicQueryScreen.Results->if(feature.key in setOf("grades","exams"))feature.title else "${feature.title}结果"
         AcademicQueryScreen.Curriculum->curriculumTitle
         AcademicQueryScreen.SearchResults->"搜索结果"
     }
-    GlasmioPinnedListPage(title,bottomPadding=180.dp,onNavigateBack=close) {
+    GlasmioPinnedListPage(title,bottomPadding=180.dp,onNavigateBack=close,actions={
+        if(feature.key=="exams") {
+            val menuBackdrop=LocalAnchoredMenuBackdrop.current?:LocalGlassBackdrop.current
+            val menuDepth=LocalAnchoredMenuDepth.current
+            val depthOwner=remember{Any()}
+            DisposableEffect(menuDepth,depthOwner){onDispose{menuDepth?.remove(depthOwner)}}
+            LaunchedEffect(menuDepth,depthOwner,examMenu){menuDepth?.setExpanded(depthOwner,examMenu)}
+            val density=LocalDensity.current
+            val textMeasurer=rememberTextMeasurer(cacheSize=8)
+            val menuWidth=minOf(228.dp*AnchoredMenuSizeScale,
+                (LocalConfiguration.current.screenWidthDp-24).coerceAtLeast(160).dp)
+            val menuPadding=10.dp*AnchoredMenuSizeScale
+            val baseRowHeight=44.dp*AnchoredMenuSizeScale
+            val titleStyle=IosTypography.body.let{it.copy(fontSize=it.fontSize*AnchoredMenuSizeScale,
+                lineHeight=it.lineHeight*AnchoredMenuSizeScale)}
+            val titleWidthPx=with(density){(menuWidth-menuPadding*2-32.dp).toPx().toInt().coerceAtLeast(1)}
+            val lineHeight=with(density){titleStyle.lineHeight.toDp()}
+            val menuLines=remember(textMeasurer,titleWidthPx,titleStyle){
+                listOf("筛选学年与学期","导出考试日历").map{label->
+                    textMeasurer.measure(AnnotatedString(label),style=titleStyle,maxLines=10,
+                        constraints=Constraints(maxWidth=titleWidthPx)).lineCount.coerceAtLeast(1)
+                }
+            }
+            val menuRowHeights=menuLines.map{lines->
+                maxOf(baseRowHeight,lineHeight+8.dp*AnchoredMenuSizeScale)+lineHeight*(lines-1)
+            }
+            CompositionLocalProvider(LocalGlassAppearance provides footerGlassAppearance(LocalGlassAppearance.current,LocalGlassColors.current.isDark)) {
+                GlasmioMenu(expanded=examMenu,onExpandedChange={examMenu=it},itemCount=2,
+                    backdrop=menuBackdrop,menuWidth=menuWidth,keepAnchorVisible=true,
+                    heightOverride=menuPadding*2+menuRowHeights[0]+menuRowHeights[1],
+                    contentPadding=menuPadding,exportChildBackdrop=false,
+                    anchor={open->GlasmioButton(onClick=open){
+                        Icon(Icons.Default.MoreVert,"更多考试操作",Modifier.size(20.dp))
+                    }}) { childBackdrop,dismiss->
+                    GlasmioMenuItem("筛选学年与学期",onClick={dismiss();screen=AcademicQueryScreen.Form},backdrop=childBackdrop,
+                        rowHeight=menuRowHeights[0],textScale=AnchoredMenuSizeScale,
+                        maxTitleLines=menuLines[0],reserveLeadingIconSpace=false)
+                    GlasmioMenuItem("导出考试日历",onClick={dismiss();exporter.launch("Xachet-Exams.ics")},
+                        enabled=!rows.isNullOrEmpty(),backdrop=childBackdrop,
+                        rowHeight=menuRowHeights[1],textScale=AnchoredMenuSizeScale,
+                        maxTitleLines=menuLines[1],reserveLeadingIconSpace=false)
+                }
+            }
+        }
+    }) {
         if(visibleScreen==AcademicQueryScreen.Form) {
             item { GlasmioGroupedList { form?.choices?.forEach { choice -> key(choice.key) {
                 val dependent=choice.key=="zyh_id_cx"||choice.key=="lh"
                 val choiceAlpha=rememberCrestoReloadAlpha(loadingForm||(loadingChoices&&dependent),formReloads to choice.values)
-                GlasmioListRow(choice.label,modifier=Modifier.reloadFade(choiceAlpha),detail=choice.values.firstOrNull{it.first==values[choice.key]}?.second,
-                    showDisclosure=true,
-                    onClick=if(!loading && !loadingChoices){{picker=choice.key}}else null)
+                AnchoredGlassChoiceRow(choice.label,modifier=Modifier.reloadFade(choiceAlpha),
+                    detail=choice.values.firstOrNull{it.first==values[choice.key]}?.second,
+                    options=choice.values,selected=values[choice.key],enabled=!loading&&!loadingChoices,
+                    onSelect={values[choice.key]=it})
             } } } }
             form?.notices?.forEach{notice->item{Text(notice,modifier=Modifier.reloadFade(formAlpha),style=IosTypography.footnote,color=LocalGlassColors.current.secondaryContent)}}
             if(feature.key=="classrooms") {
@@ -238,7 +317,9 @@ private data class AcademicFilteredRecords(
                     listOf("cdmc" to "教室名称或编号（可选）","qszws" to "最小座位数（可选）","jszws" to "最大座位数（可选）").forEach{(key,label)->
                         GlasmioTextField(values[key].orEmpty(),{values[key]=it},placeholder=label)
                     }
-                    GlasmioListRow("查询方式",detail=if(values["view"]=="day")"当日分时段总览"else "按节次筛选",onClick={picker="view"})
+                    AnchoredGlassChoiceRow("查询方式",detail=if(values["view"]=="day")"当日分时段总览"else "按节次筛选",
+                        options=listOf("day" to "当日分时段总览","filter" to "按节次筛选"),selected=values["view"],
+                        enabled=!loading&&!loadingChoices,onSelect={values["view"]=it})
                     if(values["view"]=="day") {
                         Text("查询日期",style=IosTypography.footnote,modifier=Modifier.padding(horizontal=16.dp,vertical=8.dp))
                         GlasmioTextField(dateText,{dateText=it},placeholder="YYYY-MM-DD")
@@ -252,20 +333,57 @@ private data class AcademicFilteredRecords(
                     }
                 }}
             }
-            if(form!=null)item{GlasmioButton(onClick={query()},enabled=!loading&&!loadingChoices,modifier=Modifier.fillMaxWidth(),emphasis=GlassEmphasis.Prominent){Text("查询")}}
+            if(form!=null)item{GlasmioButton(onClick={if(feature.key=="grades")gradeTab=GradeTab.Records;query()},enabled=!loading&&!loadingChoices,modifier=Modifier.fillMaxWidth(),emphasis=GlassEmphasis.Prominent){Text("查询")}}
         }
         shownError?.let{message->item{GlasmioGroupedList(Modifier.reloadFade(errorAlpha)){
             Text(message,color=LocalGlassColors.current.destructive,modifier=Modifier.padding(16.dp))
             GlasmioListRow("重试",onClick=if(loading||loadingChoices)null else {{retry(visibleScreen)}})
         }}}
         if(visibleScreen!=AcademicQueryScreen.Form) {
+        if(feature.key=="grades")item{
+            GlasmioSegmentedControl(
+                items=listOf(GradeTab.Overview to "学业总览",GradeTab.Records to "成绩表单"),
+                selected=gradeTab,
+                onSelected={selected->
+                    gradeTab=selected
+                    if(selected==GradeTab.Overview){
+                        if(screen==AcademicQueryScreen.SearchResults)screen=AcademicQueryScreen.Results
+                        if(!values["xnm"].isNullOrBlank() || !values["xqm"].isNullOrBlank()){
+                            values["xnm"]="";values["xqm"]="";rows=null;cachedAt=null;query()
+                        }
+                    }
+                },
+                modifier=Modifier.fillMaxWidth().padding(bottom=12.dp),
+                height=42.dp,
+                enabled=!loading,
+            )
+        }
+        if(feature.key=="grades" && gradeTab==GradeTab.Overview && visibleScreen==AcademicQueryScreen.Results){
+            item{GradeOverviewContent(
+                rows=visibleRows,
+                track=values["kcbj"].orEmpty().ifBlank{"1"},
+                loading=loading,
+                onTrackChange={track->
+                    if(!loading && track!=values["kcbj"]){
+                        values["kcbj"]=track;values["xnm"]="";values["xqm"]="";rows=null;cachedAt=null;query()
+                    }
+                },
+            )}
+        }else{
+        if(feature.key=="grades" && visibleScreen==AcademicQueryScreen.Results)item{
+            GlasmioGroupedList{
+                GlasmioListRow("筛选学年与学期",detail=listOfNotNull(
+                    form?.choices?.firstOrNull{it.key=="xnm"}?.values?.firstOrNull{it.first==values["xnm"]}?.second,
+                    form?.choices?.firstOrNull{it.key=="xqm"}?.values?.firstOrNull{it.first==values["xqm"]}?.second,
+                ).joinToString(" · "),onClick={screen=AcademicQueryScreen.Form})
+            }
+        }
         cachedAt?.takeIf{curriculum==null}?.let{saved->item{Text("上次查询："+java.text.DateFormat.getDateTimeInstance().format(java.util.Date(saved)),modifier=Modifier.reloadFade(resultsAlpha),style=IosTypography.caption1)}}
         if(error==null && visibleRows?.isEmpty()==true)item{Text(when(recordType){"exams"->"所选学期暂无考试安排";"grades"->"所选学期暂无成绩，请尝试其他学期";"textbooks"->"所选学期暂无教材记录";else->"暂无符合条件的记录"},style=IosTypography.body,modifier=Modifier.padding(vertical=20.dp).reloadFade(resultsAlpha))}
-        if(feature.key=="exams"&&!rows.isNullOrEmpty())item{GlasmioButton(onClick={exporter.launch("Xachet-Exams.ics")},modifier=Modifier.fillMaxWidth().reloadFade(resultsAlpha)){Text("导出考试日历")}}
         if(feature.key=="classrooms" && visibleRows?.firstOrNull()?.has("_freeSessions")==true) {
             item{Text("空：该时段可用；满：该时段不满足空闲条件",modifier=Modifier.reloadFade(resultsAlpha),style=IosTypography.footnote)}
             item{ClassroomMatrixRow("教室",AcademicRecords.daySessions,header=true,modifier=Modifier.reloadFade(resultsAlpha))}
-            items(visibleRows!!.size){index->val row=visibleRows!![index]
+            items(visibleRows.size){index->val row=visibleRows[index]
                 ClassroomMatrixRow(row.optString("cdmc"),(0..4).map{if(row.optString("_freeSessions").contains(it.toString()))"空"else "满"},modifier=Modifier.reloadFade(resultsAlpha))
             }
         }else {
@@ -273,7 +391,8 @@ private data class AcademicFilteredRecords(
             if(visibleScreen==AcademicQueryScreen.SearchResults && !filtering && visibleRows!=null)item{Text("找到 ${filteredRecords.size} 条结果",modifier=Modifier.reloadFade(resultsAlpha),style=IosTypography.footnote)}
             if(visibleScreen==AcademicQueryScreen.SearchResults && !filtering && filteredRecords.isEmpty() && !visibleRows.isNullOrEmpty())item{Text("没有匹配的记录",style=IosTypography.body,modifier=Modifier.padding(vertical=20.dp).reloadFade(resultsAlpha))}
             items(filteredRecords.size){index->val (row,record)=filteredRecords[index]
-            GlasmioGroupedList(Modifier.reloadFade(resultsAlpha)) {
+            if(recordType=="exams")ExamCard(record,examNow,Modifier.reloadFade(resultsAlpha))
+            else GlasmioGroupedList(Modifier.reloadFade(resultsAlpha)) {
                 GlasmioListRow(record.title,showTopSeparator=false,onClick=if(recordType=="cultivation"&&row.optString("jxzxjhxx_id").isNotBlank()&&!loading){{scope.launch{
                     val requestId=++curriculumRequestId
                     val sourceScreen=screen
@@ -287,17 +406,16 @@ private data class AcademicFilteredRecords(
                 record.fields.forEach{(label,value)->GlasmioListRow(label,detail=value)}
             }
         }
+            if(feature.key=="exams")examSemesterLabel(form,values)?.let{semester->item{
+                Text("查询学期：$semester",style=IosTypography.footnote,
+                    color=LocalGlassColors.current.secondaryContent,modifier=Modifier.padding(top=12.dp).reloadFade(resultsAlpha))
+            }}
+        }
     }
     }
     }
     }
     if(loading||loadingChoices)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-    }
-    val selectedChoice=if(picker=="view")QueryChoice("view","查询方式",listOf("day" to "当日分时段总览","filter" to "按节次筛选"),values["view"].orEmpty())else form?.choices?.firstOrNull{it.key==picker}
-    GlasmioBottomSheet(onDismissRequest={picker=null},visible=selectedChoice!=null,title=selectedChoice?.label.orEmpty()) {
-        LazyColumn{selectedChoice?.let{choice->items(choice.values){(key,label)->
-            GlasmioListRow(label,detail=if(values[choice.key]==key)"已选"else null,onClick={values[choice.key]=key;picker=null})
-        }}}
     }
 }
 

@@ -78,6 +78,7 @@ fun LiquidMenuMorphSurface(
     sourceMaterialEffect: ((Float) -> RenderEffect)? = null,
     materialContext: GlassMaterialContext? = null,
     sourceNativeMaterial: GlassMaterialSource? = null,
+    contentPadding: Dp = 10.dp,
     content: @Composable ColumnScope.(LayerBackdrop) -> Unit,
 ) {
     val localDensity = LocalDensity.current
@@ -456,7 +457,7 @@ fun LiquidMenuMorphSurface(
                     RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP)
                         .asComposeRenderEffect()
                 } else null
-            }.padding(10.dp),
+            }.padding(contentPadding),
         ) {
             ProvideGlassMaterialContext(context) { content(childBackdrop) }
         }

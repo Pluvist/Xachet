@@ -167,11 +167,24 @@ class AcademicRepository(private val context:Context) {
     private val http=AcademicHttp()
     private val sessionLock=Mutex()
     private val refreshLock=Mutex()
-    companion object { private val scheduleDataLock=Any() }
+    companion object {
+        private val scheduleDataLock=Any()
+        private val settingsDataLock=Any()
+    }
     private val prefs by lazy { context.getSharedPreferences("FlutterSharedPreferences",Context.MODE_PRIVATE) }
     fun settings()=runCatching{JSONObject(prefs.getString("flutter.appSettings","{}")?:"{}")}.getOrElse{JSONObject()}
     fun appearance()=runCatching{JSONObject(prefs.getString("flutter.courseCardSettings","{}")?:"{}")}.getOrElse{JSONObject()}
     fun saveAppearance(value:JSONObject){check(prefs.edit().putString("flutter.courseCardSettings",value.toString()).commit()){ "保存课表外观失败" }}
+    /** Merge under one process-wide lock: network refresh and UI saves share this document. */
+    private fun updateSettings(message:String="保存设置失败",update:(JSONObject)->Unit):Boolean = synchronized(settingsDataLock) {
+        val current=settings()
+        val before=current.toString()
+        update(current)
+        val after=current.toString()
+        if(after==before)return@synchronized false
+        check(prefs.edit().putString("flutter.appSettings",after).commit()){message}
+        true
+    }
     suspend fun colors():Map<String,String> = withContext(Dispatchers.IO) {
         val path=settings().optString("courseColorFilePath")
         if(path.isBlank())return@withContext emptyMap()
@@ -186,8 +199,7 @@ class AcademicRepository(private val context:Context) {
         value.keys().forEach{android.graphics.Color.parseColor(value.getString(it))}
         val file=AtomicFile(File(context.filesDir,"native-colors.json"));val output=file.startWrite()
         try{output.write(body.toByteArray());file.finishWrite(output)}catch(e:Throwable){file.failWrite(output);throw e}
-        val settings=settings().put("courseColorFilePath",file.baseFile.path)
-        check(prefs.edit().putString("flutter.appSettings",settings.toString()).commit()) { "保存配色失败" }
+        updateSettings("保存配色失败"){it.put("courseColorFilePath",file.baseFile.path)}
         colors()
     }
     fun hasSchedule()=File(context.filesDir,"native-schedule.json").exists() || settings().optString("classScheduleFilePath").takeIf{it.isNotBlank()}?.let{File(it).isFile}==true
@@ -272,8 +284,7 @@ class AcademicRepository(private val context:Context) {
         val calendar=runCatching{http.authenticated("xtgl/index_cxAreaFive.html?localeKey=zh_CN&gnmkdm=index",account.cookie)}.getOrNull()
         calendar?.let {
             Regex("学期[（(](\\d{4}-\\d{2}-\\d{2})至").find(Jsoup.parse(it).text())?.groupValues?.get(1)?.let { date ->
-                val settings=settings().put("semesterStartDate",date)
-                check(prefs.edit().putString("flutter.appSettings",settings.toString()).commit()) { "保存学期日期失败" }
+                updateSettings("保存学期日期失败"){it.put("semesterStartDate",date)}
             }
         }
         synchronized(scheduleDataLock) {
@@ -304,18 +315,22 @@ class AcademicRepository(private val context:Context) {
     suspend fun setRoutine(course:Course,routine:String):List<Course> = withContext(Dispatchers.IO) {
         synchronized(scheduleDataLock) {
         require(routine in setOf("auto","normal","staggered"))
-        val settings=settings();val overrides=settings.optJSONObject("courseRoutineOverrides")?:JSONObject()
-        if(routine=="auto")overrides.remove(routineKey(course))else overrides.put(routineKey(course),routine)
-        settings.put("courseRoutineOverrides",overrides)
-        check(prefs.edit().putString("flutter.appSettings",settings.toString()).commit()) { "保存作息失败" }
+        updateSettings("保存作息失败"){settings->
+            val overrides=settings.optJSONObject("courseRoutineOverrides")?:JSONObject()
+            if(routine=="auto")overrides.remove(routineKey(course))else overrides.put(routineKey(course),routine)
+            settings.put("courseRoutineOverrides",overrides)
+        }
         cachedSnapshot().also{publish(it)}
         }
     }
     suspend fun logout()=withContext(Dispatchers.IO){sessionLock.withLock{accounts.logout()}}
-    suspend fun setSetting(key:String,value:Any)=withContext(Dispatchers.IO) {
-        if(key=="semesterStartDate") require(LocalDate.parse(value.toString()).dayOfWeek==DayOfWeek.MONDAY) { "学期开始日期应为周一" }
-        val updated=settings().put(key,value)
-        check(prefs.edit().putString("flutter.appSettings",updated.toString()).commit()) { "保存设置失败" }
+    suspend fun setSetting(key:String,value:Any)=setSettings(mapOf(key to value))
+    suspend fun setSettings(values:Map<String,Any>):Boolean=withContext(Dispatchers.IO) {
+        // Validate the whole batch before changing its persisted document.
+        values["semesterStartDate"]?.let{value->
+            require(LocalDate.parse(value.toString()).dayOfWeek==DayOfWeek.MONDAY) { "学期开始日期应为周一" }
+        }
+        updateSettings { current->values.forEach{(key,value)->current.put(key,value)} }
     }
     suspend fun importSchedule(body:String):List<Course> = withContext(Dispatchers.IO) {
         val courses=if(body.trimStart().startsWith("[")) CourseParser.fromLegacy(body) else CourseParser.fromServer(body)
@@ -405,7 +420,11 @@ class AcademicRepository(private val context:Context) {
                 .put("section",it.section).put("group",it.course.id))
         }
         data.put("lessons",lessons)
-        check(context.getSharedPreferences("course_widget",Context.MODE_PRIVATE).edit().putString("data",data.toString()).commit()) { "无法保存课程状态" }
+        val published=context.getSharedPreferences("course_widget",Context.MODE_PRIVATE)
+        val snapshot=data.toString()
+        if(published.getString("data",null)!=snapshot) {
+            check(published.edit().putString("data",snapshot).commit()) { "无法保存课程状态" }
+        }
         CourseWidgetProvider.refresh(context); CourseLiveActivity.refresh(context)
     }
 }

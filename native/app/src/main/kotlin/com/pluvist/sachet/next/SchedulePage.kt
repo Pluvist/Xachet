@@ -63,6 +63,7 @@ import java.time.temporal.ChronoUnit
     var cardHeight by remember(appearanceJson){mutableFloatStateOf(appearance.optDouble("cardHeight",60.0).toFloat())}
     val scale=(cardHeight/45f*1.18f*LocalGlasmioLayoutFontScale.current.coerceIn(1f,1.5f)).coerceIn(.5f,11.85f)
     var mode by rememberSaveable{mutableStateOf(0)}
+    var viewMenuExpanded by remember{mutableStateOf(false)}
     LaunchedEffect(mode){onModeChange(mode)}
     val landscape=LocalConfiguration.current.screenWidthDp>LocalConfiguration.current.screenHeightDp
     val currentWeek=CourseClock.week(LocalDate.now(),semester).coerceIn(1,60)
@@ -102,7 +103,10 @@ import java.time.temporal.ChronoUnit
             }while(event.changes.any{it.pressed})
             if(changed)onScaleCommit(cardHeight)
         }},actions={
-        GlasmioButton(onClick={mode=(mode+1)%3}){SfIcon(SfSymbol.Layers,"切换周、月、学期视图")}
+        AnchoredGlassChoiceMenu(expanded=viewMenuExpanded,onExpandedChange={viewMenuExpanded=it},
+            options=listOf("0" to "周视图","1" to "月视图","2" to "学期视图"),selected=mode.toString(),
+            onSelect={mode=it.toInt()},baseWidth=190.dp,
+            anchor={openMenu->GlasmioButton(onClick=openMenu){SfIcon(SfSymbol.Layers,"选择课表视图")}})
         GlasmioButton(onClick=refresh){SfIcon(SfSymbol.ArrowClockwise,"同步课表")}
     }) { padding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal=if(mode==0)6.dp else 12.dp)) {

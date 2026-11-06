@@ -29,6 +29,19 @@ class AcademicKeywordSearchTest {
     @Test fun fieldLabelsDoNotProduceFalseMatches() {
         assertFalse(AcademicKeywordSearch.matches(course,"课程号"))
     }
+    @Test fun preparedSearchPreservesUnicodeWhitespaceAndMetadataMatching() {
+        val records=listOf(course,book,AcademicRecord("",emptyList()))
+        val texts=records.map(AcademicKeywordSearch::searchableText)
+        val queries=listOf("\u3000数学\tＭＡＴＨ－１０１\n", "测试作者 978-7", "课程号", "物理 数学", " \t\n")
+        val expected=listOf(listOf(course),listOf(book),emptyList(),emptyList(),records)
+        for((index,query) in queries.withIndex()) {
+            val terms=AcademicKeywordSearch.terms(query)
+            assertEquals(expected[index],
+                records.filterIndexed{index,_->AcademicKeywordSearch.matchesPrepared(texts[index],terms)})
+        }
+        assertTrue(AcademicKeywordSearch.matchesPrepared(texts[0],AcademicKeywordSearch.terms(queries[0])))
+        assertFalse(AcademicKeywordSearch.matchesPrepared(texts[2],AcademicKeywordSearch.terms("数学")))
+    }
     @Test fun retiredPageCannotDetachTheNewSearchOwner() {
         val controller=AcademicSearchController()
         val previous=AcademicSearchSession("cultivation","搜索课程")

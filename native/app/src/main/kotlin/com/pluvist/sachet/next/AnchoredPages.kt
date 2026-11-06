@@ -10,12 +10,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.*
 import io.github.neoruaa.glasmio.core.G2RoundedRectangle
+import io.github.neoruaa.glasmio.glass.LiquidMenuContour
+import io.github.neoruaa.glasmio.glass.LiquidMenuContourWorkspace
+import io.github.neoruaa.glasmio.glass.LiquidMenuMorphFrame
+import io.github.neoruaa.glasmio.glass.LiquidMenuMorphMotion
+
+private val liquidShortcutRoutes = setOf("classrooms", "cultivation", "textbooks", "exams", "grades", "gpa", "transcript")
 
 /** Coordinates are plain layout metadata; updating them never recomposes the page. */
 internal data class PageOrigin(val bounds:Rect,val radius:Float,val rootSize:Size) {
@@ -65,14 +72,43 @@ internal val LocalPageOrigins=staticCompositionLocalOf<PageOrigins?>{null}
 @Stable private class PageFlight(val route:String,val origin:PageOrigin?) {
     var open by mutableStateOf(true)
     val progress=Animatable(0f)
+    val liquid=if(route in liquidShortcutRoutes && origin!=null)LiquidMenuMorphMotion() else null
 }
-
-private class FlightViewport { var size=IntSize.Zero }
 
 @Immutable private data class FlightClip(val bounds:Rect,val radiusPx:Float):Shape {
     override fun createOutline(size:Size,layoutDirection:LayoutDirection,density:Density):Outline {
         val outline=G2RoundedRectangle(with(density){radiusPx.toDp()}).createOutline(bounds.size,layoutDirection,density)
         return Outline.Generic(Path().apply {addOutline(outline);translate(bounds.topLeft)})
+    }
+}
+
+private data class LiquidPageGeometry(val window:Rect,val contour:LiquidMenuContour)
+
+/** Measurement, placement and drawing observe the same spring frame. Reuse its
+ * contour metadata instead of rebuilding both rounded fields in every phase. */
+private class LiquidPageGeometryCache {
+    private val workspace=LiquidMenuContourWorkspace()
+    private var previousFrame:LiquidMenuMorphFrame?=null
+    private var previousOrigin:PageOrigin?=null
+    private var previousSize=Size.Zero
+    private var cached:LiquidPageGeometry?=null
+
+    fun get(frame:LiquidMenuMorphFrame,origin:PageOrigin,size:Size):LiquidPageGeometry {
+        if(previousFrame===frame&&previousOrigin==origin&&previousSize==size)return requireNotNull(cached)
+        val source=origin.inViewport(size)
+        val lobe=frame.sourceLobe
+        val sourceScale=if(lobe==null)1f else minOf(lobe.width/source.width.coerceAtLeast(1f),lobe.height/source.height.coerceAtLeast(1f))
+        val radius=origin.radius*minOf(size.width/origin.rootSize.width.coerceAtLeast(1f),
+            size.height/origin.rootSize.height.coerceAtLeast(1f))*sourceScale
+        val radii=Offset(frame.radiusX,frame.radiusY)
+        val sourceRadii=Offset(radius,radius)
+        val exterior=LiquidMenuContour(frame.bounds,radii,lobe,sourceRadii,frame.smoothing).exteriorBounds()
+        val window=Rect(exterior.left.coerceIn(0f,size.width-1f),exterior.top.coerceIn(0f,size.height-1f),
+            exterior.right.coerceIn(1f,size.width),exterior.bottom.coerceIn(1f,size.height))
+        val result=LiquidPageGeometry(window,LiquidMenuContour(frame.bounds.translate(-window.topLeft),radii,
+            lobe?.translate(-window.topLeft),sourceRadii,frame.smoothing,workspace))
+        previousFrame=frame;previousOrigin=origin;previousSize=size;cached=result
+        return result
     }
 }
 
@@ -89,21 +125,39 @@ private class FlightViewport { var size=IntSize.Zero }
             else {flights.remove(existing);flights.add(existing)}
         }
     }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val fullSize=IntSize(constraints.maxWidth,constraints.maxHeight)
     for(flight in flights.toList()) key(flight) {
-        LaunchedEffect(flight.open) {
-            flight.progress.animateTo(if(flight.open)1f else 0f,
-                spring(dampingRatio=.9f,stiffness=360f,visibilityThreshold=.0005f))
-            if(!flight.open)flights.remove(flight)
-        }
         val snapshot=rememberGraphicsLayer()
         val density=LocalDensity.current
+        val liquid=flight.liquid
+        val liquidGeometry=remember{LiquidPageGeometryCache()}
+        LaunchedEffect(flight.open,fullSize) {
+            val size=fullSize.toSize()
+            if(liquid!=null && size.width>0f && size.height>0f) {
+                val source=(if(flight.open)flight.origin else origins.get(flight.route)?:flight.origin)!!.inViewport(size)
+                val target=Rect(Offset.Zero,size)
+                val radius=with(density){28.dp.toPx()}
+                if(!liquid.initialized)liquid.initialize(source,target,radius,density.density)
+                else {liquid.updateSource(source);liquid.updateTarget(target,radius)}
+                liquid.animateTo(flight.open)
+            } else {
+                flight.progress.animateTo(if(flight.open)1f else 0f,
+                    spring(dampingRatio=.9f,stiffness=360f,visibilityThreshold=.0005f))
+            }
+            if(!flight.open)flights.remove(flight)
+        }
         fun frame(size:Size):Rect {
+            if(liquid?.initialized==true)return liquid.frame.bounds
             val origin=(if(flight.open)flight.origin else origins.get(flight.route)?:flight.origin)
             val source=origin?.inViewport(size)?:Rect(size.width*.4f,size.height*.45f,size.width*.6f,size.height*.55f)
             return androidx.compose.ui.geometry.lerp(source,Rect(Offset.Zero,size),flight.progress.value.coerceIn(0f,1f))
         }
+        fun windowFrame(size:Size):Rect {
+            if(liquid?.initialized!=true)return frame(size)
+            return liquidGeometry.get(liquid.frame,flight.origin!!,size).window
+        }
         val outside=remember{Path()}
-        val viewport=remember{FlightViewport()}
         Layout(content={
             Box(Modifier.then(if(flight.open)Modifier else Modifier.clearAndSetSemantics{}).graphicsLayer {
                 compositingStrategy=CompositingStrategy.Offscreen
@@ -111,23 +165,32 @@ private class FlightViewport { var size=IntSize.Zero }
                 // window, rather than allocating a screen-sized raster for a tiny card.
                 clip=true;shape=RectangleShape
             }.drawWithContent {
-                val p=flight.progress.value.coerceIn(0f,1f)
-                val radius=((flight.origin?.radius?:with(density){24.dp.toPx()})*(1f-p)+with(density){28.dp.toPx()}*p)
-                    .coerceAtMost(size.minDimension/2f)
-                val outline=FlightClip(Rect(Offset.Zero,size),radius).createOutline(size,layoutDirection,this)
-                drawContent()
-                outside.rewind();outside.fillType=PathFillType.EvenOdd
-                outside.addRect(Rect(Offset.Zero,size));outside.addOutline(outline)
-                drawPath(outside,Color.Black,blendMode=BlendMode.DstOut)
+                if(liquid?.initialized==true) {
+                    val geometry=liquidGeometry.get(liquid.frame,flight.origin!!,fullSize.toSize())
+                    val path=geometry.contour.path(size)
+                    clipPath(path) {this@drawWithContent.drawContent()}
+                } else {
+                    val p=flight.progress.value.coerceIn(0f,1f)
+                    val radius=((flight.origin?.radius?:with(density){24.dp.toPx()})*(1f-p)+with(density){28.dp.toPx()}*p)
+                        .coerceAtMost(size.minDimension/2f)
+                    val outline=FlightClip(Rect(Offset.Zero,size),radius).createOutline(size,layoutDirection,this)
+                    drawContent()
+                    outside.rewind();outside.fillType=PathFillType.EvenOdd
+                    outside.addRect(Rect(Offset.Zero,size));outside.addOutline(outline)
+                    drawPath(outside,Color.Black,blendMode=BlendMode.DstOut)
+                }
             }) {
                 Layout(content={
                     Box(Modifier.fillMaxSize().graphicsLayer {
-                        val full=viewport.size.toSize()
+                        val full=fullSize.toSize()
                         val rect=frame(full)
+                        val window=windowFrame(full)
                         transformOrigin=TransformOrigin(0f,0f)
                         val uniform=maxOf(rect.width/full.width.coerceAtLeast(1f),rect.height/full.height.coerceAtLeast(1f))
                         scaleX=uniform;scaleY=uniform
-                        alpha=(flight.progress.value*6f).coerceIn(0f,1f)
+                        translationX=rect.left-window.left
+                        translationY=rect.top-window.top
+                        alpha=((if(liquid?.initialized==true)liquid.frame.contentProgress else flight.progress.value)*6f).coerceIn(0f,1f)
                     }.drawWithContent {
                         if(flight.open||snapshot.size==IntSize.Zero)drawContent()else drawLayer(snapshot)
                     }) {
@@ -143,18 +206,18 @@ private class FlightViewport { var size=IntSize.Zero }
                     // The screen's layout constraints never follow the animated window.
                     // Forms, text and hit regions keep their full-size layout and uniform
                     // scale; only this cheap outer container changes its raster bounds.
-                    val full=viewport.size
+                    val full=fullSize
                     val page=measurables.single().measure(Constraints.fixed(full.width,full.height))
                     layout(windowConstraints.maxWidth,windowConstraints.maxHeight){page.place(0,0)}
                 }
             }
         },modifier=Modifier.fillMaxSize()) { measurables,constraints ->
-            viewport.size=IntSize(constraints.maxWidth,constraints.maxHeight)
-            val rect=frame(viewport.size.toSize())
+            val rect=windowFrame(fullSize.toSize())
             val window=measurables.single().measure(Constraints.fixed(
                 kotlin.math.ceil(rect.width).toInt().coerceAtLeast(1),
                 kotlin.math.ceil(rect.height).toInt().coerceAtLeast(1)))
-            layout(viewport.size.width,viewport.size.height){window.place(rect.left.toInt(),rect.top.toInt())}
+            layout(fullSize.width,fullSize.height){window.place(rect.left.toInt(),rect.top.toInt())}
         }
+    }
     }
 }

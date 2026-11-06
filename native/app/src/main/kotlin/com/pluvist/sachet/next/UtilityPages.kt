@@ -45,7 +45,9 @@ import android.os.ParcelFileDescriptor
             SettingsIconTextField("semester",semester,{semester=it},"YYYY-MM-DD")
             GlasmioListRow("课程实时活动",subtitle="上课倒计时与下一节课程信息",leading={AppIconBadge("activity",compact=true)},trailing={GlasmioSwitch(live,{live=it})})
             GlasmioListRow("课前提醒",subtitle="第 1、5 节提前 20 分钟，其他节次提前 10 分钟",leading={AppIconBadge("reminders",compact=true)},trailing={GlasmioSwitch(reminders,{reminders=it})})
-            GlasmioListRow("主题",detail=listOf("跟随系统","浅色","深色")[theme.coerceIn(0,2)],leading={AppIconBadge("theme",compact=true)},onClick={theme=(theme+1)%3})
+            AnchoredGlassChoiceRow("主题",detail=listOf("跟随系统","浅色","深色")[theme.coerceIn(0,2)],
+                options=listOf("0" to "跟随系统","1" to "浅色","2" to "深色"),selected=theme.toString(),
+                leading={AppIconBadge("theme",compact=true)},onSelect={theme=it.toIntOrNull()?:theme})
             SettingsIconTextField("accent",accent,{accent=it},"主题色，例如 #0088FF")
         }}
         item{GlasmioButton(onClick={scope.launch{
@@ -107,7 +109,6 @@ private enum class TranscriptView { FORM, RESULTS, PDF }
     var indexedFile by remember{mutableStateOf<File?>(null)}
     var types by remember{mutableStateOf<List<Pair<String,String>>>(emptyList())}
     var selected by remember{mutableStateOf("")}
-    var picker by remember{mutableStateOf(false)}
     var loadingTypes by remember{mutableStateOf(true)}
     var downloading by remember{mutableStateOf(false)}
     var searching by remember{mutableStateOf(false)}
@@ -141,7 +142,7 @@ private enum class TranscriptView { FORM, RESULTS, PDF }
     }
     SideEffect{searchSession.onSubmit={term->
         if(view!=TranscriptView.RESULTS)searchReturnView=view
-        searchTerm=term.trim();matches=emptyList();error=null;picker=false
+        searchTerm=term.trim();matches=emptyList();error=null
         view=TranscriptView.RESULTS;searchRequest++
     }}
     LaunchedEffect(reload){
@@ -214,7 +215,11 @@ private enum class TranscriptView { FORM, RESULTS, PDF }
                 when(targetView){
                 TranscriptView.FORM->{
                     item{GlasmioGroupedList(Modifier.reloadFade(typesAlpha)){
-                        GlasmioListRow("格式",detail=types.firstOrNull{it.first==selected}?.second,onClick={picker=true})
+                        AnchoredGlassChoiceRow("格式",detail=types.firstOrNull{it.first==selected}?.second,
+                            options=types,selected=selected,enabled=!loadingTypes&&types.isNotEmpty(),onSelect={key->
+                                if(selected!=key){selected=key;file=null;fileFormat=null;indexedFile=null;indexedPages=null;page=0;pageCount=0
+                                    renderedPage=null;renderedRequest=-1;renderRequest++}
+                            })
                     }}
                     item{GlasmioButton(onClick={scope.launch{
                         downloading=true;error=null
@@ -271,12 +276,5 @@ private enum class TranscriptView { FORM, RESULTS, PDF }
             }
         }
         if(loading||rendering)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-    }
-    GlasmioBottomSheet(onDismissRequest={picker=false},visible=picker&&view==TranscriptView.FORM,title="成绩单格式",fitContent=true){
-        types.forEach{(key,label)->GlasmioListRow(label,onClick={
-            if(selected!=key){selected=key;file=null;fileFormat=null;indexedFile=null;indexedPages=null;page=0;pageCount=0
-                renderedPage=null;renderedRequest=-1;renderRequest++}
-            picker=false
-        })}
     }
 }

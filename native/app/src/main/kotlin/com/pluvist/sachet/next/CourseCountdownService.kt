@@ -21,7 +21,13 @@ import java.util.concurrent.Executors
 class CourseCountdownService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var end = 0L
-    private var notification: Notification? = null
+    private var notificationBuilder: Notification.Builder? = null
+    private val notificationManager by lazy {
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+    private val powerManager by lazy {
+        getSystemService(Context.POWER_SERVICE) as PowerManager
+    }
     private var registered = false
     private val screens = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) { schedule() }
@@ -35,25 +41,16 @@ class CourseCountdownService : Service() {
                 worker.execute { CourseLiveActivity.refresh(app) }
                 return
             }
-            if (interactive()) notification?.let {
-                val builder = if (Build.VERSION.SDK_INT >= 24) Notification.Builder.recoverBuilder(this@CourseCountdownService, it)
-                    else Notification.Builder(this@CourseCountdownService).setSmallIcon(R.drawable.ic_course_live)
-                        .setOngoing(true).setShowWhen(false).setContentIntent(it.contentIntent).setDeleteIntent(it.deleteIntent)
-                        .setStyle(Notification.BigTextStyle().setBigContentTitle(it.extras.getCharSequence(Notification.EXTRA_TITLE_BIG))
-                            .bigText(it.extras.getCharSequence(Notification.EXTRA_BIG_TEXT))).apply {
-                                it.actions?.forEach { action -> addAction(action) }
-                            }
-                val updated = builder.setContentTitle(CourseTimeline.countdown(end - now)).setOnlyAlertOnce(true).build()
+            val interactive = powerManager.isInteractive
+            if (interactive) notificationBuilder?.let { builder ->
+                val updated = builder.setContentTitle(CourseTimeline.countdown(end - now)).build()
                 try {
-                    (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                        .notify(CourseLiveActivity.ID, updated)
+                    notificationManager.notify(CourseLiveActivity.ID, updated)
                 } catch (_: SecurityException) { stopSelf(); return }
-                notification = updated
             }
-            handler.postDelayed(this, if (interactive()) 1000 - now % 1000 else end - now)
+            handler.postDelayed(this, if (interactive) 1000 - now % 1000 else end - now)
         }
     }
-    private fun interactive() = (getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
     private fun schedule() { handler.removeCallbacks(tick); handler.post(tick) }
     override fun onCreate() {
         super.onCreate()
@@ -70,7 +67,7 @@ class CourseCountdownService : Service() {
         if (supplied == null || suppliedEnd <= System.currentTimeMillis() || CourseLiveActivity.activeEnd(this) != suppliedEnd) {
             stopSelf(); return START_NOT_STICKY
         }
-        end = suppliedEnd; notification = supplied
+        end = suppliedEnd
         try {
             if (Build.VERSION.SDK_INT >= 34) startForeground(CourseLiveActivity.ID, supplied, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             else startForeground(CourseLiveActivity.ID, supplied)
@@ -78,6 +75,15 @@ class CourseCountdownService : Service() {
             android.util.Log.w("CourseActivity", "Foreground countdown unavailable", error)
             stopSelf(); return START_NOT_STICKY
         }
+        // Recover immutable notification details only when the source changes.
+        // The one-second tick then changes just the numeric title.
+        notificationBuilder = (if (Build.VERSION.SDK_INT >= 24) Notification.Builder.recoverBuilder(this, supplied)
+            else Notification.Builder(this).setSmallIcon(R.drawable.ic_course_live)
+                .setOngoing(true).setShowWhen(false).setContentIntent(supplied.contentIntent).setDeleteIntent(supplied.deleteIntent)
+                .setStyle(Notification.BigTextStyle().setBigContentTitle(supplied.extras.getCharSequence(Notification.EXTRA_TITLE_BIG))
+                    .bigText(supplied.extras.getCharSequence(Notification.EXTRA_BIG_TEXT))).apply {
+                        supplied.actions?.forEach { action -> addAction(action) }
+                    }).setOnlyAlertOnce(true)
         schedule()
         return START_NOT_STICKY
     }

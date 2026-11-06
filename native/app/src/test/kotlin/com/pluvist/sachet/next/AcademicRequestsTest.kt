@@ -14,6 +14,12 @@ class AcademicRequestsTest {
         assertEquals("2026",data["xnm"]);assertEquals("12",data["xqm"])
         assertEquals("kssj+",data["queryModel.sortName"])
     }
+    @Test fun gradeTrackAndAllSemestersReachTheAcademicQuery() {
+        val main=AcademicRequests.parameters("grades",mapOf("xnm" to "","xqm" to "","kcbj" to "1"))
+        val minor=AcademicRequests.parameters("grades",mapOf("xnm" to "","xqm" to "","kcbj" to "2"))
+        assertEquals("",main["xnm"]);assertEquals("",main["xqm"])
+        assertEquals("1",main["kcbj"]);assertEquals("2",minor["kcbj"])
+    }
     @Test(expected=IllegalArgumentException::class) fun invalidClassroomSessionRejected() {
         AcademicRequests.numberSet("0,12",11)
     }

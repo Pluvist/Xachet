@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import io.github.neoruaa.glasmio.glass.render.Backdrop
 
-/** Samples the click-time blurred GPU layer in screen space. The window outline
- * and refraction remain live without a bitmap readback or material swap. */
+/** Samples the click-time unblurred GPU layer in screen space. The glass applies
+ * its own frost while its outline and refraction remain live. */
 internal class CourseStaticRasterBackdrop(
     private val raster: CourseBackgroundRasterState,
     private val epoch: State<Int>,

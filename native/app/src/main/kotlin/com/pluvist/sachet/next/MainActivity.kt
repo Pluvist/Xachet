@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -32,6 +35,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
@@ -176,6 +180,16 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         drawContext.canvas.nativeCanvas.drawColor(canvasColor.toArgb())
     }
     val edgeBackdrop=rememberLayerBackdrop()
+    val anchoredMenuDepth=rememberAnchoredMenuDepthState()
+    val anchoredMenuDensity=LocalDensity.current
+    val anchoredMenuBlurPx=with(anchoredMenuDensity){1.2.dp.toPx()}
+    val anchoredMenuBlurEffects=remember(anchoredMenuBlurPx){(1..24).map{step->
+        val radius=anchoredMenuBlurPx*step/24f
+        BlurEffect(radius,radius,TileMode.Clamp)
+    }}
+    val anchoredMenuDropPx=with(anchoredMenuDensity){4.dp.toPx()}
+    val anchoredMenuIsDark=LocalGlassColors.current.isDark
+    val anchoredMenuDimColor=if(anchoredMenuIsDark)Color.Black else Color(0xFF18232D)
     val courseDepthBackdrop=rememberLayerBackdrop()
     val courseDepthEnabled=remember(courseMorph){ { courseMorph.isBusy } }
     val courseSearchEnabled=remember(courseMorph){derivedStateOf{!courseMorph.isBusy}}
@@ -197,7 +211,23 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     }
         .academicSearchDismissGesture(academicSearch,detail)) {
     Box(Modifier.fillMaxSize()) {
-    Box(Modifier.fillMaxSize().nestedScroll(navigationScroll.nestedScrollConnection)) {
+    Box(Modifier.fillMaxSize()
+        .graphicsLayer {
+            val depth=anchoredMenuDepth.progress
+            val scale=1f-.015f*depth
+            scaleX=scale;scaleY=scale
+            translationY=anchoredMenuDropPx*depth
+            val blurProgress=depth.coerceIn(0f,1f)
+            renderEffect=if(blurProgress>.005f)
+                anchoredMenuBlurEffects[(blurProgress*anchoredMenuBlurEffects.size).toInt()
+                    .coerceIn(0,anchoredMenuBlurEffects.lastIndex)] else null
+        }
+        .drawWithContent {
+            drawContent()
+            val depth=anchoredMenuDepth.progress.coerceIn(0f,1f)
+            if(depth>0f)drawRect(anchoredMenuDimColor.copy(alpha=(if(anchoredMenuIsDark).12f else .08f)*depth))
+        }
+        .nestedScroll(navigationScroll.nestedScrollConnection)) {
     // A uniform canvas has no screen-space transform or image-filter dependency.
     // Inner page buttons retain the same opaque color during every window flight.
     GlasmioBackdropHost(Modifier.fillMaxSize(),sampledContent={
@@ -208,7 +238,10 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         // those gaps out of the sampled scene as well as the visible canvas.
         Box(Modifier.fillMaxSize().graphicsLayer().glassBackdropSource(edgeBackdrop)
             .background(LocalGlassColors.current.groupedBackground)) {
-        CompositionLocalProvider(LocalGlassBackdrop provides staticBackdrop,LocalBlurBackdrop provides staticBackdrop,LocalPageOrigins provides pageOrigins,LocalAcademicSearch provides academicSearch) {
+        CompositionLocalProvider(LocalGlassBackdrop provides staticBackdrop,LocalBlurBackdrop provides staticBackdrop,
+            LocalAnchoredMenuBackdrop provides visiblePageBackdrop,
+            LocalAnchoredMenuDepth provides anchoredMenuDepth,
+            LocalPageOrigins provides pageOrigins,LocalAcademicSearch provides academicSearch) {
         Box(Modifier.fillMaxSize()) {
         RetainedTabs(selected,detail==null) { destination ->
             CompositionLocalProvider(LocalMorphInteractive provides (destination==selected&&detail==null),LocalNavigationViewportBinding provides { if(destination==selected&&detail==null)viewport=it }) {
@@ -278,7 +311,9 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     })
     }
     }
-    CourseMorphHost(courseMorph,coursePanelBackdrop,status){course,routine->vm.setRoutine(course,routine)}
+    CompositionLocalProvider(LocalAnchoredMenuDepth provides anchoredMenuDepth) {
+        CourseMorphHost(courseMorph,coursePanelBackdrop,status){course,routine->vm.setRoutine(course,routine)}
+    }
     }
     }
 }

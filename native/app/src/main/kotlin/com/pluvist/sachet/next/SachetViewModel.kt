@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
+private val coursePublicationSettingKeys=setOf("semesterStartDate","themeMode","isEnableCourseLiveActivity","isEnableCourseReminders")
+
 data class AppData(val courses:List<Course> = emptyList(),val account:Account=Account(),val loading:Boolean=true,val message:String?=null,val settingsSnapshot:String="{}",val appearanceSnapshot:String="{}",val hasSchedule:Boolean=false,val colors:Map<String,String> = emptyMap(),val reloadRevision:Int=0,val reloadFromClick:Boolean=false,val initialized:Boolean=false)
 class SachetViewModel(app:Application):AndroidViewModel(app) {
     val repository=AcademicRepository(app)
@@ -107,9 +109,11 @@ class SachetViewModel(app:Application):AndroidViewModel(app) {
         mutable.update{it.copy(courses=courses,hasSchedule=true,reloadRevision=it.reloadRevision+1)}
     }
     suspend fun saveSettings(values:Map<String,Any>) {
-        values.forEach{(key,value)->repository.setSetting(key,value)}
+        val changed=repository.setSettings(values)
         mutable.update{it.copy(settingsSnapshot=repository.settings().toString())}
-        repository.republish()
+        // Onboarding and purely visual settings do not alter the offline timeline.
+        if(changed&&values.keys.any{it in coursePublicationSettingKeys})
+            repository.republish()
     }
     suspend fun saveAppearance(json:org.json.JSONObject) {
         withContext(Dispatchers.IO){repository.saveAppearance(json)}

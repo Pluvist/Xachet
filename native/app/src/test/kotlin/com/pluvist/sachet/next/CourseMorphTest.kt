@@ -6,15 +6,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CourseMorphTest {
-    @Test fun animatedPanelKeepsTheRecognizedRectangularShapeAndStandardRadius() {
-        val progress=androidx.compose.runtime.mutableStateOf(0f)
-        val shape=courseMorphShape(progress,6f)
-        assertTrue(shape is io.github.neoruaa.glasmio.core.G2RoundedRectangle)
-        val rectangle=shape as androidx.compose.foundation.shape.CornerBasedShape
-        val size=androidx.compose.ui.geometry.Size(320f,440f)
-        assertEquals(6f,rectangle.topStart.toPx(size,androidx.compose.ui.unit.Density(1f)),0f)
-        progress.value=1f
-        assertEquals(31f,rectangle.topStart.toPx(size,androidx.compose.ui.unit.Density(1f)),0f)
+    @Test fun panelCornerRadiusScalesWithGlassSamplingResolution() {
+        var radius=108f
+        val shape=coursePanelGlassShape({radius},androidx.compose.ui.unit.Density(3f))
+        assertEquals(108f,shape.topStart.toPx(androidx.compose.ui.geometry.Size(1104f,840f),
+            androidx.compose.ui.unit.Density(3f)),0f)
+        assertEquals(27f,shape.topStart.toPx(androidx.compose.ui.geometry.Size(276f,210f),
+            androidx.compose.ui.unit.Density(.75f)),0f)
+        radius=72f
+        assertEquals(72f,shape.topStart.toPx(androidx.compose.ui.geometry.Size(1104f,840f),
+            androidx.compose.ui.unit.Density(3f)),0f)
+        assertEquals(18f,shape.topStart.toPx(androidx.compose.ui.geometry.Size(276f,210f),
+            androidx.compose.ui.unit.Density(.75f)),0f)
     }
     @Test fun backgroundFrameStartsAndEndsAtTheActualComponentAndPanel() {
         val from=Rect(20f,600f,300f,648f);val to=Rect(16f,250f,324f,620f)
