@@ -36,6 +36,8 @@ Flutter 及 pubspec.yaml 中的依赖遵循各自许可证；Flutter 构建生�
 
 ## HyperCeiler
 
+原生 Compose 引导页于 2026-11-07 按 HyperCeiler `293cbc08d65fafe0179a49a7b0d7338261572b87` 的 provision 模块重写，保留其 AGPL-3.0 声明和原始布局参考。浅色流光使用原始 `glow.glsl` 与默认参数；2026-11-08 的深色版本按用户要求改为黑底蓝、紫、粉光晕。Xachet 的协议、账号、权限和小组件功能接入原有逻辑；按钮、箭头与主页展开使用 Glasmio 控件和 LiquidMenuMorphMotion，并未包含系统专属 `fan.transition` 库，详见 [来源与差异](third_party/hyperceiler/SOURCES.md)。
+
 首次账号引导布局转写自 ReChronoRain/HyperCeiler，Copyright (C) 2023-2026 HyperCeiler Contributions，AGPL-3.0。原始XML、固定提交和适配说明保存在 [来源目录](third_party/hyperceiler/SOURCES.md)。品牌改为Xachet，仅保留账号步骤，保留原glow.glsl与GlowPainter默认参数，转写为Flutter着色器；未包含其系统专属活动动画库。来源控件捕获与展开入口另参考同一提交的 StartupFragment.java / ViewUtils.java；Flutter 版本保持目标页面原尺寸，通过完整控件边缘揭示下一页，时长和曲线为本项目适配参数。
 
 ## MeiloX 原生底栏滚动逻辑
@@ -48,6 +50,6 @@ Flutter 及 pubspec.yaml 中的依赖遵循各自许可证；Flutter 构建生�
 
 ## Cresto and MiSans (native app)
 
-Page motion is adapted from Nevodev/Cresto (Apache-2.0), revision 74564563a686106d76d7d9a403dd994a4fbcb6a7. Its guide layout is used as a design reference with Sachet-specific content. See third_party/cresto/SOURCES.md and LICENSE. The app includes the Apache license and credits in About.
+Page motion is adapted from Nevodev/Cresto (Apache-2.0), revision 74564563a686106d76d7d9a403dd994a4fbcb6a7. The former Cresto-based guide was replaced by the HyperCeiler adaptation on 2026-11-07; existing application/tab motion remains. See third_party/cresto/SOURCES.md and LICENSE. The app includes the Apache license and credits in About.
 
 This application uses MiSans fonts. Copyright © 2020–2025 Beijing Xiaomi Mobile Software Co., Ltd. All Rights Reserved. The unmodified official MiSansVF.ttf (4.009) is included as an app resource under Xiaomi's MiSans Font Intellectual Property License Agreement, not the application's source license. The license is retained in third_party/misans/LICENSE.pdf and app legal assets. Source, checksum and weight-axis details: third_party/misans/SOURCES.md. The About page explicitly credits MiSans.

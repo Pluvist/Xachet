@@ -25,6 +25,7 @@ import io.github.neoruaa.glasmio.core.G2RoundedRectangle
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.GlasmioSegmentedControl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -141,16 +142,9 @@ internal fun GradeOverviewContent(
 @Composable
 private fun GradeMetricTile(label: String, value: String, valueColor: Color) {
     val colors = LocalGlassColors.current
-    Row(
-        modifier = Modifier.fillMaxWidth().background(colors.groupedBackground, G2RoundedRectangle(18.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(Modifier.size(6.dp).background(colors.accent, G2RoundedRectangle(3.dp)))
-        Text(label, style = IosTypography.body, modifier = Modifier.weight(1f))
-        Text(value, style = IosTypography.headline, color = valueColor, textAlign = TextAlign.End)
-    }
+    GlasmioListRow(label, minimumHeight = 48.dp,
+        leading = { Box(Modifier.size(6.dp).background(colors.accent, G2RoundedRectangle(3.dp))) },
+        trailing = { Text(value, style = IosTypography.headline, color = valueColor, textAlign = TextAlign.End) })
 }
 
 private fun formatMetric(value: Double?): String = value?.takeIf { it.isFinite() }?.let {

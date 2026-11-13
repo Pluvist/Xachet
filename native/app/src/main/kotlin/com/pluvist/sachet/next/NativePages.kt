@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -42,7 +41,7 @@ import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 
 private data class HomeFeature(val key:String,val title:String,val url:String?=null)
-private val HomeCardShape=G2RoundedRectangle(24.dp)
+private val HomeCardShape=G2RoundedRectangle(26.dp)
 /** Cached neutral specular rim; it follows the card outline without tinting the surface. */
 @Composable private fun Modifier.homeGlassRim(shape:Shape=HomeCardShape):Modifier {
     val isDark=LocalGlassColors.current.isDark
@@ -88,29 +87,31 @@ private val campusLinks=listOf(
     val open:(HomeFeature)->Unit={feature->feature.url?.let{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(it)))}?:navigate(feature.key)}
     GlasmioPinnedListPage("Xachet",bottomPadding=170.dp,listState=listState,modifier=Modifier.navigationViewport(viewport),subtitle=LocalDate.now().format(DateTimeFormatter.ofPattern("M月d日 EEEE"))) {
         item { HomeCourseCards(data,status,courseAlpha){navigate("classrooms")} }
-        item { Text("快捷功能",style=IosTypography.title3.copy(fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold),modifier=Modifier.padding(top=20.dp,bottom=6.dp)) }
-        item { HomeFeatureCard(campusNetworkFeature,Modifier.fillMaxWidth()){open(campusNetworkFeature)} }
+        item { Text("快捷功能",style=IosTypography.title3.copy(fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold),modifier=Modifier.provisionEntrance(2).padding(top=20.dp,bottom=6.dp)) }
+        item { HomeFeatureCard(campusNetworkFeature,Modifier.fillMaxWidth().provisionEntrance(3)){open(campusNetworkFeature)} }
         items(featureRows) { row -> Row(horizontalArrangement=Arrangement.spacedBy(13.dp)) {
             row.forEach { feature ->
-                HomeFeatureCard(feature,Modifier.weight(1f)){open(feature)}
+                HomeFeatureCard(feature,Modifier.weight(1f).provisionEntrance(4+homeFeatures.indexOf(feature)/2)){open(feature)}
             }
             if(row.size<columns)Spacer(Modifier.weight(1f))
         } }
-        item { Text("校园服务",style=IosTypography.title3.copy(fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold),modifier=Modifier.padding(top=20.dp,bottom=6.dp)) }
-        item { GlasmioGroupedList(Modifier.homeGlassRim().clip(HomeCardShape)) {
+        item { Text("校园服务",style=IosTypography.title3.copy(fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold),modifier=Modifier.provisionEntrance(8).padding(top=20.dp,bottom=6.dp)) }
+        item { GlasmioGroupedList(Modifier.provisionEntrance(9).homeGlassRim().clip(HomeCardShape)) {
             campusLinks.forEach{feature->GlasmioListRow(feature.title,minimumHeight=68.dp,leading={AppIconBadge(feature.key,compact=true)},onClick={open(feature)})}
         } }
-        item { GlasmioButton(onClick=refresh,enabled=!data.loading,modifier=Modifier.fillMaxWidth().homeGlassRim(G2RoundedRectangle(100.dp))){
-            if(data.loading) CircularProgressIndicator(Modifier.size(20.dp)) else Text("同步课程表")
+        item { GlasmioButton(onClick=refresh,enabled=!data.loading,modifier=Modifier.fillMaxWidth().provisionEntrance(9).homeGlassRim(G2RoundedRectangle(100.dp))){
+            if(data.loading) XachetLoadingIndicator(Modifier.size(20.dp)) else Text("同步课程表")
         } }
     }
 }
 
 @Composable private fun HomeFeatureCard(feature:HomeFeature,modifier:Modifier=Modifier,onClick:()->Unit) {
     val colors=LocalGlassColors.current
-    Row(modifier.pageOrigin(feature.key).heightIn(min=76.dp).homeGlassRim().background(colors.elevatedBackground,HomeCardShape).clip(HomeCardShape).clickable(onClick=onClick).padding(horizontal=12.dp,vertical=16.dp),verticalAlignment=Alignment.CenterVertically) {
+    GlasmioCard(modifier.pageOrigin(feature.key,26.dp).heightIn(min=76.dp).homeGlassRim(),onClick=onClick) {
+    Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=16.dp),verticalAlignment=Alignment.CenterVertically) {
         AppIconBadge(feature.key);Spacer(Modifier.width(10.dp))
-        Text(feature.title,style=IosTypography.callout,modifier=Modifier.weight(1f))
+        Text(feature.title,style=IosTypography.callout,modifier=Modifier.weight(1f).pageTitleSource(feature.key,feature.title,IosTypography.callout))
+    }
     }
 }
 
@@ -118,7 +119,7 @@ private val campusLinks=listOf(
     val colors=LocalGlassColors.current
     val fontScale=LocalGlasmioLayoutFontScale.current.coerceAtLeast(1f)
     Row(Modifier.fillMaxWidth().height((210f*fontScale).dp),horizontalArrangement=Arrangement.spacedBy(13.dp)) {
-        Box(Modifier.weight(1f).fillMaxHeight().reloadFade(courseAlpha).homeGlassRim().background(colors.elevatedBackground,HomeCardShape).clip(HomeCardShape)) {
+        GlasmioCard(Modifier.weight(1f).fillMaxHeight().provisionEntrance(0).reloadFade(courseAlpha).homeGlassRim()) {
             androidx.compose.material3.Icon(
                 if(status.current!=null||status.next!=null)androidx.compose.material.icons.Icons.Default.DirectionsRun else androidx.compose.material.icons.Icons.Default.CheckCircleOutline,
                 null,Modifier.align(Alignment.BottomEnd).offset(20.dp,20.dp).size(126.dp),
@@ -134,12 +135,14 @@ private val campusLinks=listOf(
             }
         }
         Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(9.75.dp)) {
-            Column(Modifier.weight(1.15f).fillMaxWidth().reloadFade(courseAlpha).homeGlassRim().background(colors.elevatedBackground,HomeCardShape).padding(start=12.dp,end=12.dp,top=14.dp,bottom=4.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+            GlasmioCard(Modifier.weight(1.15f).fillMaxWidth().provisionEntrance(1).reloadFade(courseAlpha).homeGlassRim()) {
+            Column(Modifier.padding(start=12.dp,end=12.dp,top=14.dp,bottom=4.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
                 Text("下一节课",style=IosTypography.footnote,color=colors.secondaryContent)
                 Text(status.next?.course?.title?:"暂无下一节课",style=IosTypography.headline,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 status.next?.let{Text("${it.startTime()}–${it.endTime()}",style=IosTypography.footnote,color=colors.secondaryContent);Text(it.course.place,style=IosTypography.footnote,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)}
             }
-            HomeFeatureCard(classroomsFeature,Modifier.weight(.72f).fillMaxWidth(),classrooms)
+            }
+            HomeFeatureCard(classroomsFeature,Modifier.weight(.72f).fillMaxWidth().provisionEntrance(2),classrooms)
         }
     }
 }
@@ -150,12 +153,12 @@ private val campusLinks=listOf(
     val accountAlpha=rememberCrestoReloadAlpha(revision=data.account.name to data.account.studentID)
     GlasmioPinnedListPage("我",bottomPadding=170.dp,listState=listState,modifier=Modifier.navigationViewport(viewport)) {
         item { GlasmioGroupedList {
-            GlasmioListRow(data.account.name.ifBlank{"登录教务账号"},modifier=Modifier.pageOrigin("login",16.dp).reloadFade(accountAlpha),subtitle=data.account.studentID.ifBlank{"同步课程与教务信息"},leading={AppIconBadge("login")},onClick={navigate("login")})
-            GlasmioListRow("后台运行与通知权限",modifier=Modifier.pageOrigin("permissions",16.dp),leading={AppIconBadge("permissions")},onClick={navigate("permissions")})
-            GlasmioListRow("设置",modifier=Modifier.pageOrigin("settings",16.dp),leading={AppIconBadge("settings")},onClick={navigate("settings")})
-            GlasmioListRow("课表外观",modifier=Modifier.pageOrigin("appearance",16.dp),leading={AppIconBadge("appearance")},onClick={navigate("appearance")})
-            GlasmioListRow("导入与导出课表",modifier=Modifier.pageOrigin("files",16.dp),leading={AppIconBadge("files")},onClick={navigate("files")})
-            GlasmioListRow("数据文件",modifier=Modifier.pageOrigin("fileManager",16.dp),leading={AppIconBadge("fileManager")},onClick={navigate("fileManager")})
+            GlasmioListRow(data.account.name.ifBlank{"登录教务账号"},titleModifier=Modifier.pageTitleSource("login",data.account.name.ifBlank{"登录教务账号"},IosTypography.body),modifier=Modifier.pageOrigin("login",16.dp).reloadFade(accountAlpha),subtitle=data.account.studentID.ifBlank{"同步课程与教务信息"},leading={AppIconBadge("login")},onClick={navigate("login")})
+            GlasmioListRow("后台运行与通知权限",titleModifier=Modifier.pageTitleSource("permissions","后台运行与通知权限",IosTypography.body),modifier=Modifier.pageOrigin("permissions",16.dp),leading={AppIconBadge("permissions")},onClick={navigate("permissions")})
+            GlasmioListRow("设置",titleModifier=Modifier.pageTitleSource("settings","设置",IosTypography.body),modifier=Modifier.pageOrigin("settings",16.dp),leading={AppIconBadge("settings")},onClick={navigate("settings")})
+            GlasmioListRow("课表外观",titleModifier=Modifier.pageTitleSource("appearance","课表外观",IosTypography.body),modifier=Modifier.pageOrigin("appearance",16.dp),leading={AppIconBadge("appearance")},onClick={navigate("appearance")})
+            GlasmioListRow("导入与导出课表",titleModifier=Modifier.pageTitleSource("files","导入与导出课表",IosTypography.body),modifier=Modifier.pageOrigin("files",16.dp),leading={AppIconBadge("files")},onClick={navigate("files")})
+            GlasmioListRow("数据文件",titleModifier=Modifier.pageTitleSource("fileManager","数据文件",IosTypography.body),modifier=Modifier.pageOrigin("fileManager",16.dp),leading={AppIconBadge("fileManager")},onClick={navigate("fileManager")})
             listOf(false to "添加桌面小组件",true to "添加横向小组件").forEach{(wide,title)->GlasmioListRow(title,leading={AppIconBadge("widget")},onClick={
                 val manager=AppWidgetManager.getInstance(context)
                 if(manager.isRequestPinAppWidgetSupported) manager.requestPinAppWidget(ComponentName(context,if(wide)CourseWidgetWideProvider::class.java else CourseWidgetProvider::class.java),null,null)
@@ -163,7 +166,7 @@ private val campusLinks=listOf(
             if(data.account.cookie.isNotBlank()) GlasmioListRow("退出登录",leading={AppIconBadge("logout")},onClick={vm.logout()},titleColor=LocalGlassColors.current.destructive)
         } }
         item { GlasmioGroupedList {
-            GlasmioListRow("Xachet",modifier=Modifier.pageOrigin("about",16.dp),subtitle="作者 Pluvist · 基于 Sachet 二次修改",leading={AppIconBadge("about")},onClick={navigate("about")})
+            GlasmioListRow("Xachet",titleModifier=Modifier.pageTitleSource("about","Xachet",IosTypography.body),modifier=Modifier.pageOrigin("about",16.dp),subtitle="作者 Pluvist · 基于 Sachet 二次修改",leading={AppIconBadge("about")},onClick={navigate("about")})
             GlasmioListRow("开源致谢",subtitle="Sachet / MeiloX / Glasmio",leading={AppIconBadge("source")},onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/Pluvist/Xachet")))})
         } }
     }
@@ -187,7 +190,7 @@ private val campusLinks=listOf(
             onWebLogin?.let{GlasmioListRow("通过教务网页登录",modifier=Modifier.pageOrigin("webLogin",16.dp),onClick=it)}
         }}
         item{GlasmioButton(onClick={if(cookieMode)vm.cookieLogin(cookie,onDone) else vm.login(id,password,remember,onDone)},enabled=(if(cookieMode)cookie.isNotBlank() else id.isNotBlank()&&password.isNotBlank())&&!data.loading,modifier=Modifier.fillMaxWidth(),emphasis=GlassEmphasis.Prominent){
-            if(data.loading) CircularProgressIndicator(Modifier.size(20.dp)) else Text("登录并同步")
+            if(data.loading) XachetLoadingIndicator(Modifier.size(20.dp)) else Text("登录并同步")
         }}
     }
 }

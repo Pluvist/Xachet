@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import io.github.neoruaa.glasmio.core.G2RoundedRectangle
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
+import io.github.neoruaa.glasmio.ui.GlasmioCard
 import java.time.LocalDateTime
 
 /** Compact exam card: title/countdown above the time and place, as in the earlier exam page. */
@@ -41,8 +42,9 @@ internal fun ExamCard(
     val place = record.fields.firstOrNull { it.first == "地点" }?.second.orEmpty()
     val timing = remember(time) { ExamPresentation.parse(time) }
     val countdown = timing?.let { ExamPresentation.countdown(it, now) }
+    GlasmioCard(modifier.fillMaxWidth()) {
     Column(
-        modifier.fillMaxWidth().background(colors.elevatedBackground, G2RoundedRectangle(26.dp))
+        Modifier.fillMaxWidth()
             .padding(horizontal = 17.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -90,6 +92,7 @@ internal fun ExamCard(
                 Text(place, style = IosTypography.footnote, color = colors.secondaryContent)
             }
         }
+    }
     }
 }
 

@@ -1,5 +1,7 @@
 package com.pluvist.sachet.next
 
+import androidx.lifecycle.repeatOnLifecycle
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -127,7 +129,12 @@ private data class CourseGlassGeometry(val bounds:Rect,val radius:Float) {
     val footerAppearance=footerGlassAppearance(LocalGlassAppearance.current,environmentColors.isDark)
     val density=LocalDensity.current
     val measurer=rememberTextMeasurer(cacheSize=48)
-    val clock by produceState(Instant.now(),status.current?.end,visible){if(visible&&status.current!=null)while(true){value=Instant.now();delay(1000)}}
+    val clockLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val clock by produceState(Instant.now(),status.current?.end,visible,clockLifecycle){
+        if(visible&&status.current!=null)clockLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while(true){value=Instant.now();delay(1000)}
+        }
+    }
     // Preserve the spring's velocity for interruption while preventing course
     // cards from visibly growing beyond either endpoint on a rapid retarget.
     val progress=remember(flight){derivedStateOf{
@@ -139,11 +146,6 @@ private data class CourseGlassGeometry(val bounds:Rect,val radius:Float) {
         layout(child.width,child.height){if(visible)child.place(0,0)}
     }) {
         val rootWidth=constraints.maxWidth.toFloat();val rootHeight=constraints.maxHeight.toFloat()
-        val sinkPixels=with(density){8.dp.toPx()}
-        SideEffect {
-            controller.backgroundTapPosition={position->CourseBackgroundGeometry.canonicalTap(
-                position,Size(rootWidth,rootHeight),controller.flight?.progress?.value?:0f,sinkPixels)}
-        }
         val top=WindowInsets.statusBars.getTop(density).toFloat()
         val bottom=WindowInsets.navigationBars.getBottom(density).toFloat()
         val lower=flight.request.content==CourseMorphContent.Status
@@ -151,8 +153,7 @@ private data class CourseGlassGeometry(val bounds:Rect,val radius:Float) {
         val target=remember(rootWidth,rootHeight,top,bottom,lower,emptyPanel,density){coursePanelTarget(rootWidth,rootHeight,top,bottom,lower,emptyPanel,density)}
         val targetRadius=with(density){(NavigationBarSurfaceHeight.value/2f).dp.toPx()}
         // Use the menu's live spring channels for the glass silhouette. Keep the
-        // existing scalar spring for the fixed-size content, text flight and page
-        // depth, so those children are never stretched with the liquid contour.
+        // scalar spring for the fixed-size content, text flight and page scrim.
         LaunchedEffect(flight,controller.revision,target,targetRadius,density.density) {
             val motion=flight.liquidMotion
             if(!motion.initialized)motion.initialize(flight.source.bounds,target,targetRadius,density.density)
@@ -291,14 +292,14 @@ private data class CourseGlassGeometry(val bounds:Rect,val radius:Float) {
         Layout(content={
                 CompositionLocalProvider(LocalGlassColors provides colors,
                     LocalGlassAppearance provides footerAppearance) {
-                // Keep the footer's material, adding a neutral coat only while
-                // the course or status panel grows away from its source bar.
+                // Keep the footer's material, fading in a 40% neutral coat only
+                // while the course or status panel grows away from its source bar.
                 val restingCoating=footerAppearance.resolvedFrostOverlayColor()
                 val expandedCoating=if(colors.isDark)Color.Black else Color.White
                 CourseGlassSurface(Modifier.fillMaxSize().clickable(interactionSource=remember{MutableInteractionSource()},indication=null){},
                     backdrop=pageBackdrop,shape=shape,blurRadius=2.dp,exportedBackdrop=livePanelBackdrop,
                     coatingColorProvider=if(content is CourseMorphContent.Day)null else {{
-                        expandedCoating.copy(alpha=.06f*CourseMorphGeometry.smooth(progress.value))
+                        expandedCoating.copy(alpha=.40f*CourseMorphGeometry.smooth(progress.value))
                             .compositeOver(restingCoating)
                     }}) {
                     Box(Modifier.fillMaxSize().drawWithContent {
@@ -387,9 +388,7 @@ private data class CourseGlassGeometry(val bounds:Rect,val radius:Float) {
 
 @Composable private fun MorphLessonRow(dated:DatedCourse,onSelect:(Course)->Unit) {
     val colors=LocalGlassColors.current
-    val style=IosTypography.headline.copy(color=colors.content)
-    Column(Modifier.fillMaxWidth().clickable(enabled=LocalMorphInteractive.current){onSelect(dated.course)}.padding(vertical=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        Text(dated.course.title,style=style)
-        Text("${dated.startTime()}–${dated.endTime()} · ${dated.course.place}",style=IosTypography.footnote)
-    }
+    io.github.neoruaa.glasmio.ui.GlasmioListRow(dated.course.title,
+        subtitle="${dated.startTime()}–${dated.endTime()} · ${dated.course.place}",
+        onClick=if(LocalMorphInteractive.current){{onSelect(dated.course)}}else null)
 }

@@ -21,6 +21,8 @@ import io.github.neoruaa.glasmio.glass.LiquidMenuContour
 import io.github.neoruaa.glasmio.glass.LiquidMenuContourWorkspace
 import io.github.neoruaa.glasmio.glass.LiquidMenuMorphFrame
 import io.github.neoruaa.glasmio.glass.LiquidMenuMorphMotion
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 private val liquidShortcutRoutes = setOf("classrooms", "cultivation", "textbooks", "exams", "grades", "gpa", "transcript")
 
@@ -35,6 +37,8 @@ internal data class PageOrigin(val bounds:Rect,val radius:Float,val rootSize:Siz
 @Stable internal class PageOrigins {
     private class Source(var coordinates:LayoutCoordinates,var radius:Float,var last:PageOrigin?=null)
     private val sources=mutableMapOf<String,Source>()
+    internal val titles=mutableMapOf<String,PageTitleSource>()
+    internal val flyingTitles=mutableStateMapOf<String,Boolean>()
     fun register(key:String,coordinates:LayoutCoordinates,radius:Float) {
         val source=sources[key]
         if(source==null)sources[key]=Source(coordinates,radius)
@@ -69,8 +73,10 @@ internal val LocalPageOrigins=staticCompositionLocalOf<PageOrigins?>{null}
     }
 }
 
-@Stable private class PageFlight(val route:String,val origin:PageOrigin?) {
+@Stable private class PageFlight(val route:String,val origin:PageOrigin?,val title:PageTitleFlight) {
     var open by mutableStateOf(true)
+        private set
+    fun request(open:Boolean){if(this.open!=open){this.open=open;title.begin(open)}}
     val progress=Animatable(0f)
     val liquid=if(route in liquidShortcutRoutes && origin!=null)LiquidMenuMorphMotion() else null
 }
@@ -118,21 +124,30 @@ private class LiquidPageGeometryCache {
 @Composable internal fun AnchoredPages(destination:String?,origins:PageOrigins,content:@Composable (String)->Unit) {
     val flights=remember{mutableStateListOf<PageFlight>()}
     LaunchedEffect(destination) {
-        flights.forEach{it.open=it.route==destination}
+        flights.forEach{it.request(it.route==destination)}
         if(destination!=null) {
             val existing=flights.firstOrNull{it.route==destination}
-            if(existing==null)flights.add(PageFlight(destination,origins.get(destination)))
+            if(existing==null) {
+                val title=PageTitleFlight(origins.titles[destination]?.snapshot())
+                flights.add(PageFlight(destination,origins.get(destination),title))
+            }
             else {flights.remove(existing);flights.add(existing)}
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val fullSize=IntSize(constraints.maxWidth,constraints.maxHeight)
     for(flight in flights.toList()) key(flight) {
+        DisposableEffect(flight) {
+            if(flight.title.source!=null)origins.flyingTitles[flight.route]=true
+            onDispose { origins.flyingTitles.remove(flight.route) }
+        }
         val snapshot=rememberGraphicsLayer()
         val density=LocalDensity.current
         val liquid=flight.liquid
         val liquidGeometry=remember{LiquidPageGeometryCache()}
         LaunchedEffect(flight.open,fullSize) {
+            coroutineScope {
+            launch{flight.title.animateTo(flight.open)}
             val size=fullSize.toSize()
             if(liquid!=null && size.width>0f && size.height>0f) {
                 val source=(if(flight.open)flight.origin else origins.get(flight.route)?:flight.origin)!!.inViewport(size)
@@ -145,6 +160,10 @@ private class LiquidPageGeometryCache {
                 flight.progress.animateTo(if(flight.open)1f else 0f,
                     spring(dampingRatio=.9f,stiffness=360f,visibilityThreshold=.0005f))
             }
+            flight.title.finishWindow()
+            }
+            // Keep the floating text until both independent springs return. The
+            // source title is restored in the same composition that removes it.
             if(!flight.open)flights.remove(flight)
         }
         fun frame(size:Size):Rect {
@@ -157,12 +176,12 @@ private class LiquidPageGeometryCache {
             if(liquid?.initialized!=true)return frame(size)
             return liquidGeometry.get(liquid.frame,flight.origin!!,size).window
         }
-        val outside=remember{Path()}
         Layout(content={
             Box(Modifier.then(if(flight.open)Modifier else Modifier.clearAndSetSemantics{}).graphicsLayer {
-                compositingStrategy=CompositingStrategy.Offscreen
-                // Native rectangular clipping bounds the effect texture to the actual
-                // window, rather than allocating a screen-sized raster for a tiny card.
+                // A clip does not need a separate changing-size color surface. Keep
+                // content and glass in their existing layers instead of copying the
+                // whole window into another texture on every spring frame.
+                compositingStrategy=CompositingStrategy.Auto
                 clip=true;shape=RectangleShape
             }.drawWithContent {
                 if(liquid?.initialized==true) {
@@ -171,13 +190,11 @@ private class LiquidPageGeometryCache {
                     clipPath(path) {this@drawWithContent.drawContent()}
                 } else {
                     val p=flight.progress.value.coerceIn(0f,1f)
+                    val visibleSize=frame(fullSize.toSize()).size
                     val radius=((flight.origin?.radius?:with(density){24.dp.toPx()})*(1f-p)+with(density){28.dp.toPx()}*p)
-                        .coerceAtMost(size.minDimension/2f)
-                    val outline=FlightClip(Rect(Offset.Zero,size),radius).createOutline(size,layoutDirection,this)
-                    drawContent()
-                    outside.rewind();outside.fillType=PathFillType.EvenOdd
-                    outside.addRect(Rect(Offset.Zero,size));outside.addOutline(outline)
-                    drawPath(outside,Color.Black,blendMode=BlendMode.DstOut)
+                        .coerceAtMost(visibleSize.minDimension/2f)
+                    val outline=FlightClip(Rect(Offset.Zero,visibleSize),radius).createOutline(size,layoutDirection,this)
+                    clipPath((outline as Outline.Generic).path) {this@drawWithContent.drawContent()}
                 }
             }) {
                 Layout(content={
@@ -194,13 +211,16 @@ private class LiquidPageGeometryCache {
                     }.drawWithContent {
                         if(flight.open||snapshot.size==IntSize.Zero)drawContent()else drawLayer(snapshot)
                     }) {
-                        Box(Modifier.fillMaxSize().layout { measurable,constraints ->
+                        Box(Modifier.fillMaxSize().onGloballyPositioned { flight.title.setRoot(it) }.layout { measurable,constraints ->
                             val child=measurable.measure(constraints)
                             layout(child.width,child.height){if(flight.open||snapshot.size==IntSize.Zero)child.place(0,0)}
                         }.drawWithContent {
                             snapshot.record{this@drawWithContent.drawContent()}
                             drawLayer(snapshot)
-                        }) { content(flight.route) }
+                        }) {
+                            CompositionLocalProvider(io.github.neoruaa.glasmio.core.LocalPageTitleDecoration provides
+                                { text,style,visibility -> Modifier.pageTitleTarget(flight.title,text,style,visibility) }) { content(flight.route) }
+                        }
                     }
                 }) { measurables,windowConstraints ->
                     // The screen's layout constraints never follow the animated window.
@@ -218,6 +238,7 @@ private class LiquidPageGeometryCache {
                 kotlin.math.ceil(rect.height).toInt().coerceAtLeast(1)))
             layout(fullSize.width,fullSize.height){window.place(rect.left.toInt(),rect.top.toInt())}
         }
+        PageTitleOverlay(flight.title)
     }
     }
 }

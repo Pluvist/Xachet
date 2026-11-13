@@ -4,15 +4,15 @@ An Android academic companion for Xiangtan University, maintained by **Pluvist**
 
 Starting with **0.19.78**, production uses **Kotlin / Jetpack Compose** and Kotlin academic repositories. MeiloX / Glasmio provide the liquid-glass foundation; the music accessory becomes a course-status bar. The original Flutter implementation remains as a historical behavior reference.
 
-[中文](README.md) · [Build instructions](README_DEV.md) · [Release notes](docs/releases/0.19.80.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[中文](README.md) · [Build instructions](README_DEV.md) · [Release notes](docs/releases/0.19.81.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Download
 
-**Version 0.19.80 requires Android 13 or later.**
+**Version 0.19.81 requires Android 13 or later.**
 
-- [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.80/xachet-v0.19.80-arm64-v8a.apk)
-- [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.80/xachet-v0.19.80-armeabi-v7a.apk)
-- [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.80/xachet-v0.19.80-x86_64.apk)
+- [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-arm64-v8a.apk)
+- [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-armeabi-v7a.apk)
+- [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-x86_64.apk)
 
 Checksums and the certificate fingerprint are attached to the [release](https://github.com/Pluvist/Xachet/releases/latest). Version 0.19.79 uses `com.pluvist.xachet` and installs separately from older `com.pluvist.sachet.next` releases. Accounts, settings, cached timetables and home-screen widgets do not migrate automatically; sign in and add widgets again. The `.localtest` preview also has separate private data.
 

@@ -295,6 +295,9 @@ fun GlasmioPinnedListPage(
                         ) {
                             Text(
                                 text = title,
+                                modifier = io.github.neoruaa.glasmio.core.LocalPageTitleDecoration.current(
+                                    title, IosTypography.largeTitle.copy(fontWeight = FontWeight.SemiBold,
+                                        color = LocalGlassColors.current.content), 1f-collapseProgress),
                                 style = IosTypography.largeTitle,
                                 fontWeight = FontWeight.SemiBold,
                                 color = LocalGlassColors.current.content,

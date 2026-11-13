@@ -373,7 +373,7 @@ fun GlasmioEditableText(
 }
 
 @Composable
-internal fun GlasmioEditableTextField(
+fun GlasmioEditableTextField(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
@@ -392,7 +392,7 @@ internal fun GlasmioEditableTextField(
     decorationBox = decorationBox)
 
 @Composable
-internal fun GlasmioEditableTextField(
+fun GlasmioEditableTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,

@@ -1,5 +1,7 @@
 package com.pluvist.sachet.next
 
+import androidx.lifecycle.repeatOnLifecycle
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -9,7 +11,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -78,8 +79,11 @@ private data class AcademicFilteredRecords(
     var failedDestination by remember(feature){mutableStateOf<AcademicQueryScreen?>(null)}
     var curriculumRequestId by remember(feature){mutableIntStateOf(0)}
     val scope=rememberCoroutineScope()
-    val examNow by produceState(LocalDateTime.now(),feature.key){
-        if(feature.key=="exams")while(true){delay(30_000);value=LocalDateTime.now()}
+    val examLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val examNow by produceState(LocalDateTime.now(),feature.key,examLifecycle){
+        if(feature.key=="exams")examLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while(true){value=LocalDateTime.now();delay(30_000)}
+        }
     }
     val context=LocalContext.current
     val close:()->Unit={curriculumRequestId++;when(screen) {
@@ -415,7 +419,7 @@ private data class AcademicFilteredRecords(
     }
     }
     }
-    if(loading||loadingChoices)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
+    if(loading||loadingChoices)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){XachetLoadingIndicator()}
     }
 }
 

@@ -157,6 +157,7 @@ fun GlasmioListRow(
     titleColor: Color = Color.Unspecified,
     titleAlignment: TextAlign = TextAlign.Start,
     minimumHeight: Dp = Dp.Unspecified,
+    titleModifier: Modifier = Modifier,
 ) {
     val colors = LocalGlassColors.current
     val inSheet = LocalIosSheetMaterialContext.current != null
@@ -190,7 +191,7 @@ fun GlasmioListRow(
             Column(Modifier.weight(1f).padding(vertical=if(subtitle==null)12.dp else 10.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
                 IosSheetText(
                     title,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().then(titleModifier),
                     style = IosTypography.body,
                     color = if (titleColor == Color.Unspecified) colors.content else titleColor,
                     useMaterial = titleColor == Color.Unspecified,

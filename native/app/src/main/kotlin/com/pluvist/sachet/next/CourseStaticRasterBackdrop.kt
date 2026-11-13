@@ -12,7 +12,6 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
 import io.github.neoruaa.glasmio.glass.render.Backdrop
 
 /** Samples the click-time unblurred GPU layer in screen space. The glass applies
@@ -21,7 +20,6 @@ internal class CourseStaticRasterBackdrop(
     private val raster: CourseBackgroundRasterState,
     private val epoch: State<Int>,
     private val sceneRevision: Any,
-    private val progress: State<Float>,
     private val fallback: Backdrop,
 ) : Backdrop {
     var sourceCoordinates: LayoutCoordinates? = null
@@ -56,8 +54,7 @@ internal class CourseStaticRasterBackdrop(
             return
         }
 
-        // transformFrom includes the window's animated position and any ancestor scale.
-        // The depth pass itself is drawn in place, so reproduce only its draw transform.
+        // Match the glass's animated position to the fixed page coordinates.
         sourceToConsumer.reset()
         try {
             if (source.findRootCoordinates() === consumer.findRootCoordinates()) {
@@ -77,17 +74,17 @@ internal class CourseStaticRasterBackdrop(
             with(fallback) { drawBackdrop(density, coordinates, layerBlock) }
             return
         }
-        val fraction = CourseMorphGeometry.smooth(progress.value)
         val logicalSize = capture.key.size
-        val pivot = Offset(logicalSize.width * .5f, logicalSize.height * .5f)
         withTransform({
             transform(sourceToConsumer)
-            translate(0f, with(density) { 8.dp.toPx() } * fraction)
-            scale(CourseBackgroundGeometry.scale(fraction), CourseBackgroundGeometry.scale(fraction), pivot)
             scale(logicalSize.width.toFloat() / capture.key.sampleSize.width,
                 logicalSize.height.toFloat() / capture.key.sampleSize.height, Offset.Zero)
         }) {
-            drawLayer(capture.layer)
+            val image=capture.image
+            if(image!=null)withTransform({
+                scale(capture.key.sampleSize.width.toFloat()/logicalSize.width,
+                    capture.key.sampleSize.height.toFloat()/logicalSize.height,Offset.Zero)
+            }) { drawImage(image) } else drawLayer(capture.layer)
         }
     }
 }
@@ -96,8 +93,7 @@ internal class CourseStaticRasterBackdrop(
     raster: CourseBackgroundRasterState,
     epoch: State<Int>,
     sceneRevision: Any,
-    progress: State<Float>,
     fallback: Backdrop,
-): CourseStaticRasterBackdrop = remember(raster, epoch, sceneRevision, progress, fallback) {
-    CourseStaticRasterBackdrop(raster, epoch, sceneRevision, progress, fallback)
+): CourseStaticRasterBackdrop = remember(raster, epoch, sceneRevision, fallback) {
+    CourseStaticRasterBackdrop(raster, epoch, sceneRevision, fallback)
 }

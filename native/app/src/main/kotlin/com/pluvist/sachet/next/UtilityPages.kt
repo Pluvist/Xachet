@@ -9,7 +9,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -275,6 +274,6 @@ private enum class TranscriptView { FORM, RESULTS, PDF }
                 }
             }
         }
-        if(loading||rendering)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
+        if(loading||rendering)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){XachetLoadingIndicator()}
     }
 }

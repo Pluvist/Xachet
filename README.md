@@ -8,17 +8,17 @@
 
 ## 下载
 
-**当前正式版：0.19.80，要求 Android 13 及以上。**
+**当前正式版：0.19.81，要求 Android 13 及以上。**
 
 | 架构 | 适用设备 | 下载 |
 | --- | --- | --- |
-| arm64-v8a | 大多数现代 Android 手机和平板 | [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.80/xachet-v0.19.80-arm64-v8a.apk) |
-| armeabi-v7a | 运行 Android 13+ 的 32 位 ARM 设备 | [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.80/xachet-v0.19.80-armeabi-v7a.apk) |
-| x86_64 | 64 位 x86 设备或模拟器 | [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.80/xachet-v0.19.80-x86_64.apk) |
+| arm64-v8a | 大多数现代 Android 手机和平板 | [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-arm64-v8a.apk) |
+| armeabi-v7a | 运行 Android 13+ 的 32 位 ARM 设备 | [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-armeabi-v7a.apk) |
+| x86_64 | 64 位 x86 设备或模拟器 | [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-x86_64.apk) |
 
 [最新 Release](https://github.com/Pluvist/Xachet/releases/latest) 附有校验和及签名证书指纹。0.19.79 的包名改为 `com.pluvist.xachet`，会作为独立应用安装，无法覆盖安装使用 `com.pluvist.sachet.next` 的旧版；账号、设置、课表缓存和桌面组件不会自动迁移。请在新版重新登录并添加桌面组件。原生预览版 `.localtest` 也与正式版独立。
 
-Android 12 及更早系统可使用 [0.19.77 历史版本](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77)。本版改动见 [发布说明](docs/releases/0.19.80.md)，功能验证范围见 [原生迁移计划](docs/meilox-migration-plan.md)。
+Android 12 及更早系统可使用 [0.19.77 历史版本](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77)。本版改动见 [发布说明](docs/releases/0.19.81.md)，功能验证范围见 [原生迁移计划](docs/meilox-migration-plan.md)。
 
 ## 相比上游的主要变化
 

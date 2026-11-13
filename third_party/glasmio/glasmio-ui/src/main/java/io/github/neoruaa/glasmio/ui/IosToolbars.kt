@@ -188,6 +188,10 @@ fun GlasmioTopBar(
                     ) {
                         Text(
                             title,
+                            modifier = io.github.neoruaa.glasmio.core.LocalPageTitleDecoration.current(
+                                title, (if (subtitle == null) IosTypography.headline
+                                    else IosTypography.subheadline.copy(fontWeight = FontWeight.SemiBold))
+                                    .copy(color = LocalGlassColors.current.content), progress),
                             style = if (subtitle == null) IosTypography.headline
                             else IosTypography.subheadline.copy(fontWeight = FontWeight.SemiBold),
                             color = LocalGlassColors.current.content,

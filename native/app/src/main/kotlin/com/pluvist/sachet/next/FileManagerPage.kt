@@ -5,7 +5,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -48,7 +47,7 @@ import kotlinx.coroutines.*
                 }})
             }}
         } else {
-            item{BasicTextField(body,{body=it},Modifier.fillMaxWidth().height(420.dp).verticalScroll(rememberScrollState()).padding(12.dp).reloadFade(bodyAlpha),textStyle=TextStyle(color=colors.content,fontFamily=MiSansFamily,fontSize=13.sp),cursorBrush=SolidColor(colors.accent))}
+            item{GlasmioCard(Modifier.fillMaxWidth()){GlasmioEditableTextField(body,{body=it},Modifier.fillMaxWidth().height(420.dp).verticalScroll(rememberScrollState()).padding(12.dp).reloadFade(bodyAlpha),singleLine=false,textStyle=TextStyle(color=colors.content,fontFamily=MiSansFamily,fontSize=13.sp),cursorBrush=SolidColor(colors.accent))}}
             item{GlasmioGroupedList{
                 GlasmioListRow("保存修改",onClick={scope.launch{loadingFiles=true;try{vm.repository.writeManagedFile(selected!!,body);files=vm.repository.managedFiles();vm.reloadLocal();selected=null}catch(e:CancellationException){throw e}catch(e:Exception){error=e.message}finally{loadingFiles=false;completedReloads++}}})
                 if(selected?.kind in setOf("schedule","colors"))GlasmioListRow("启用此文件",onClick={if(selected?.kind=="schedule")vm.importSchedule(body)else vm.importColors(body);selected=null})

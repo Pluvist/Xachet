@@ -23,8 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.Layout
@@ -35,7 +33,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
@@ -62,6 +59,16 @@ import kotlinx.coroutines.delay
 import java.time.*
 
 class MainActivity : ComponentActivity() {
+    override fun dispatchTouchEvent(event:android.view.MotionEvent):Boolean {
+        if(BuildConfig.BUILD_TYPE=="benchmark" && event.actionMasked==android.view.MotionEvent.ACTION_DOWN) {
+            val started=System.nanoTime()
+            android.view.Choreographer.getInstance().postFrameCallback {
+                android.util.Log.w("XachetInputFrame","dispatch_to_callback_ns=${System.nanoTime()-started}")
+            }
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         if(BuildConfig.BUILD_TYPE=="preview" && intent.getBooleanExtra("academic_probe",false)) {
@@ -113,12 +120,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Box(Modifier.fillMaxSize().background(LocalGlassColors.current.groupedBackground)) {
-            if(onboarding!=null) CrestoPageLayer(onboarding==false){SachetApp(vm)}
-            AnimatedVisibility(onboarding==true,enter=crestoEnter(),exit=crestoExit()) {
-            GlasmioBackdropHost(Modifier.fillMaxSize(),sampledContent={
-                Box(Modifier.fillMaxSize().background(LocalGlassColors.current.groupedBackground))
-            },overlayContent={OnboardingPage(data,vm){onboarding=false}})
-            }
+            if(onboarding!=null) ProvisionAppHost(onboarding==true,data,vm,onFinished={onboarding=false}){SachetApp(vm)}
             }
         } } } }
     }
@@ -162,12 +164,13 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     ) }
     val semester=remember(data.courses,data.settingsSnapshot){vm.repository.semester()}
     val initialStatus=remember(data.courses,semester){CourseClock.status(data.courses,semester,Instant.now())}
-    val status by produceState(initialStatus,data.courses,semester) {
-        while(true) {
+    val statusLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val status by produceState(initialStatus,data.courses,semester,statusLifecycle) {
+        statusLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) { while(true) {
             value=CourseClock.status(data.courses,semester,Instant.now())
             val boundary=listOfNotNull(value.current?.end,value.next?.start).minOrNull()
             delay(boundary?.let{Duration.between(Instant.now(),it).toMillis().coerceIn(100,30_000)}?:30_000)
-        }
+        } }
     }
     BackHandler(detail!=null){detail=null}
     val navigate:(String)->Unit={if(!courseMorph.isBusy){if(it in setOf("home","schedule","profile")){selected=it;detail=null}else detail=it}}
@@ -181,13 +184,6 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     }
     val edgeBackdrop=rememberLayerBackdrop()
     val anchoredMenuDepth=rememberAnchoredMenuDepthState()
-    val anchoredMenuDensity=LocalDensity.current
-    val anchoredMenuBlurPx=with(anchoredMenuDensity){1.2.dp.toPx()}
-    val anchoredMenuBlurEffects=remember(anchoredMenuBlurPx){(1..24).map{step->
-        val radius=anchoredMenuBlurPx*step/24f
-        BlurEffect(radius,radius,TileMode.Clamp)
-    }}
-    val anchoredMenuDropPx=with(anchoredMenuDensity){4.dp.toPx()}
     val anchoredMenuIsDark=LocalGlassColors.current.isDark
     val anchoredMenuDimColor=if(anchoredMenuIsDark)Color.Black else Color(0xFF18232D)
     val courseDepthBackdrop=rememberLayerBackdrop()
@@ -196,14 +192,13 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
     val visiblePageBackdrop=remember(edgeBackdrop,courseDepthBackdrop,courseDepthEnabled){
         CourseDynamicBackdrop(edgeBackdrop,courseDepthBackdrop,courseDepthEnabled)
     }
-    val courseWindowProgress=remember(courseMorph){derivedStateOf{courseMorph.flight?.progress?.value?:0f}}
     val courseCaptureEpoch=remember(courseMorph){derivedStateOf{courseMorph.flight?.captureEpoch?:-1}}
     val depthSceneRevision=remember(data.reloadRevision,data.courses,data.settingsSnapshot,data.appearanceSnapshot,data.colors,canvasColor){Any()}
     val courseRaster=remember{CourseBackgroundRasterState()}
-    val courseBackgroundDepth=rememberCourseBackgroundDepth(courseWindowProgress,courseCaptureEpoch,
+    val courseBackgroundCapture=rememberCourseBackgroundCapture(courseCaptureEpoch,
         depthSceneRevision,edgeBackdrop.graphicsLayer,courseRaster)
     val coursePanelBackdrop=rememberCourseStaticRasterBackdrop(courseRaster,courseCaptureEpoch,depthSceneRevision,
-        courseWindowProgress,courseDepthBackdrop)
+        courseDepthBackdrop)
     CompositionLocalProvider(LocalCourseMorph provides courseMorph) {
     Box(Modifier.fillMaxSize().onGloballyPositioned{
         courseMorph.rootScreenOrigin=it.positionOnScreen()
@@ -212,16 +207,6 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         .academicSearchDismissGesture(academicSearch,detail)) {
     Box(Modifier.fillMaxSize()) {
     Box(Modifier.fillMaxSize()
-        .graphicsLayer {
-            val depth=anchoredMenuDepth.progress
-            val scale=1f-.015f*depth
-            scaleX=scale;scaleY=scale
-            translationY=anchoredMenuDropPx*depth
-            val blurProgress=depth.coerceIn(0f,1f)
-            renderEffect=if(blurProgress>.005f)
-                anchoredMenuBlurEffects[(blurProgress*anchoredMenuBlurEffects.size).toInt()
-                    .coerceIn(0,anchoredMenuBlurEffects.lastIndex)] else null
-        }
         .drawWithContent {
             drawContent()
             val depth=anchoredMenuDepth.progress.coerceIn(0f,1f)
@@ -230,9 +215,12 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         .nestedScroll(navigationScroll.nestedScrollConnection)) {
     // A uniform canvas has no screen-space transform or image-filter dependency.
     // Inner page buttons retain the same opaque color during every window flight.
-    GlasmioBackdropHost(Modifier.fillMaxSize(),sampledContent={
+    // This screen owns edgeBackdrop and courseDepthBackdrop already. A second
+    // default host recorded the entire same scene although no child sampled it.
+    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().layerBackdrop(courseDepthBackdrop,reuseContent=true,enabled=courseDepthEnabled)
-            .background(canvasColor).then(courseBackgroundDepth)) {
+            .background(canvasColor).then(courseBackgroundCapture)) {
         // The glass must capture the same opaque canvas that is visible behind pages.
         // Retained page transitions expose transparent gaps before they settle; keep
         // those gaps out of the sampled scene as well as the visible canvas.
@@ -273,7 +261,8 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
         }
         }
         }
-    },overlayContent={
+    }
+    Box(Modifier.fillMaxSize()) {
         AcademicSearchScrim(academicSearch,detail)
         CompositionLocalProvider(LocalGlassAppearance provides footerGlassAppearance(LocalGlassAppearance.current,LocalGlassColors.current.isDark),
             LocalGlassBackdrop provides visiblePageBackdrop,LocalBlurBackdrop provides visiblePageBackdrop) {
@@ -305,10 +294,15 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
             }
         }
         }
-        data.message?.let { message -> GlassSurface(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),onClick=vm::dismissMessage) {
-            Text(message,Modifier.padding(16.dp),color=LocalGlassColors.current.destructive,style=IosTypography.body)
-        } }
-    })
+        data.message?.let { message ->
+            CompositionLocalProvider(LocalGlassBackdrop provides visiblePageBackdrop,LocalBlurBackdrop provides visiblePageBackdrop) {
+                GlassSurface(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),onClick=vm::dismissMessage) {
+                    Text(message,Modifier.padding(16.dp),color=LocalGlassColors.current.destructive,style=IosTypography.body)
+                }
+            }
+        }
+    }
+    }
     }
     }
     CompositionLocalProvider(LocalAnchoredMenuDepth provides anchoredMenuDepth) {
@@ -362,8 +356,11 @@ private fun SachetApp(vm:SachetViewModel=viewModel()) {
 }
 
 @Composable internal fun Countdown(end:Instant,modifier:Modifier=Modifier,prominent:Boolean=false) {
-    val remaining by produceState(Duration.between(Instant.now(),end).toMillis().coerceAtLeast(0),end) {
-        while(true){value=Duration.between(Instant.now(),end).toMillis().coerceAtLeast(0);delay(1000)}
+    val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val remaining by produceState(Duration.between(Instant.now(),end).toMillis().coerceAtLeast(0),end,lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while(true){value=Duration.between(Instant.now(),end).toMillis().coerceAtLeast(0);if(value==0L)break;delay(1000)}
+        }
     }
     Text(CourseTimeline.countdown(remaining),modifier,style=(if(prominent)IosTypography.title1 else IosTypography.headline).copy(fontFeatureSettings="tnum",fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold))
 }

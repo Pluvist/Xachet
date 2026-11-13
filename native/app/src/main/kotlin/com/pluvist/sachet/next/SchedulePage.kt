@@ -115,10 +115,14 @@ import java.time.temporal.ChronoUnit
             val semesterCellHeight=((availableHeight-10.dp*(semesterRows-1))/semesterRows-58.dp)/6
             when(mode) {
                 0->HorizontalPager(weeks,key={"week-$it-$weeksPerPage"},beyondViewportPageCount=1,modifier=Modifier.fillMaxSize().padding(top=padding.calculateTopPadding())) { page ->
+                    // Do not hand off all course hit sources midway through a drag.
+                    // Keep ownership stable until the pager settles; header position still
+                    // follows currentPage, and a new drag can interrupt the existing fling.
+                    val pageActive by remember(page,weeks){derivedStateOf{page==weeks.settledPage}}
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         repeat(weeksPerPage){position->
                             val week=page*weeksPerPage+position+1
-                            WeekGrid(weekIndex[week],semester,week,cardStyle,courseTextMeasurer,normalAxis,staggeredAxis,dateHeader,scale,page==weeks.currentPage,reloadAlpha,Modifier.weight(1f).graphicsLayer()){}
+                            WeekGrid(weekIndex[week],semester,week,cardStyle,courseTextMeasurer,normalAxis,staggeredAxis,dateHeader,scale,pageActive,reloadAlpha,Modifier.weight(1f).graphicsLayer()){}
                         }
                     }
                 }
@@ -131,7 +135,7 @@ import java.time.temporal.ChronoUnit
                     items(6,key={"semester-$it"}){MonthGrid(courses,semester,monthStart.plusMonths(it.toLong()),modifier=Modifier.reloadFade(reloadAlpha),cellHeight=semesterCellHeight.coerceIn((16f*fontScale).dp,32.dp.coerceAtLeast((16f*fontScale).dp)),compact=true,onDay={})}
                 }
             }
-            if(refreshing)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){androidx.compose.material3.CircularProgressIndicator()}
+            if(refreshing)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){XachetLoadingIndicator()}
         }
     }
 }
@@ -354,7 +358,8 @@ private class TimeAxisPaints(val number:android.graphics.Paint,val time:android.
     val first=month.atDay(1)
     val cells=first.dayOfWeek.value-1+month.lengthOfMonth()
     val counts=remember(courses,semester,month){CalendarMonthData.counts(courses,semester,month)}
-    Column(modifier.fillMaxWidth().padding(vertical=4.dp).background(colors.elevatedBackground,GlasmioTheme.shapes.medium).padding(if(compact)8.dp else 12.dp)) {
+    GlasmioCard(modifier.fillMaxWidth().padding(vertical=4.dp)) {
+    Column(Modifier.fillMaxSize().padding(if(compact)8.dp else 12.dp)) {
         Text("${month.year}年${month.monthValue}月",style=if(compact)IosTypography.footnote else if(fitHeight)IosTypography.headline else IosTypography.title2,maxLines=1,modifier=Modifier.padding(bottom=if(compact)4.dp else 8.dp))
         Row { listOf("一","二","三","四","五","六","日").forEach{Text(it,Modifier.weight(1f),style=if(compact)IosTypography.caption2 else IosTypography.caption1)} }
         repeat(if(compact)6 else (cells+6)/7){row->Row(if(fitHeight)Modifier.weight(1f)else Modifier.height(cellHeight)) {repeat(7){column->
@@ -371,5 +376,6 @@ private class TimeAxisPaints(val number:android.graphics.Paint,val time:android.
                 }
             }
         }} }
+    }
     }
 }

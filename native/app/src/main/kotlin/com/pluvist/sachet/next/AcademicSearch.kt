@@ -8,7 +8,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
@@ -250,15 +249,15 @@ object AcademicKeywordSearch {
             if(session.expanded)Row(Modifier.weight(1f).graphicsLayer{alpha=expansion.value.coerceIn(0f,1f)}
                 .then(if(session.expanded&&visible)Modifier else Modifier.clearAndSetSemantics{}),verticalAlignment=Alignment.CenterVertically) {
                 Spacer(Modifier.width(8.dp))
-                BasicTextField(session.query,{session.query=it},enabled=visible&&session.expanded,
+                GlasmioEditableTextField(session.query,{session.query=it},enabled=visible&&session.expanded,
                     modifier=Modifier.weight(1f).focusRequester(requester),singleLine=true,
                     textStyle=IosTypography.body.copy(color=colors.content),cursorBrush=SolidColor(colors.accent),
                     keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={submit()}),
                     decorationBox={inner->Box(contentAlignment=Alignment.CenterStart){if(session.query.text.isEmpty())Text(session.placeholder,style=IosTypography.body,color=colors.tertiaryContent);inner()}})
-                Box(Modifier.size(32.dp).clickable(enabled=visible&&session.expanded,onClick={submit()}),contentAlignment=Alignment.Center){
+                GlasmioIconButton(onClick={submit()},enabled=visible&&session.expanded,size=32.dp){
                     SfIcon("magnifyingglass","查看搜索结果",size=18.dp,tint=colors.content)
                 }
-                Box(Modifier.size(32.dp).clickable(enabled=visible&&session.expanded,onClick={close()}),contentAlignment=Alignment.Center){
+                GlasmioIconButton(onClick={close()},enabled=visible&&session.expanded,size=32.dp){
                     SfIcon("xmark","收起搜索",size=18.dp,tint=colors.content)
                 }
             }

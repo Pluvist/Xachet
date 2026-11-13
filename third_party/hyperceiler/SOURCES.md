@@ -1,5 +1,33 @@
 # HyperCeiler onboarding layout adaptation
 
+## Native Compose rewrite, 2026-11-07
+
+Reference revision: `293cbc08d65fafe0179a49a7b0d7338261572b87`.
+Source: https://github.com/ReChronoRain/HyperCeiler/tree/293cbc08d65fafe0179a49a7b0d7338261572b87/library/provision
+
+`native-reference/` retains the welcome, terms, permissions, completion and title
+layouts, dimensions, GlowPainter defaults, RenderViewLayout and AnimHelper.
+`native/app/src/main/res/raw/provision_glow.glsl` is the unmodified upstream shader.
+All are Copyright (C) 2023-2026 HyperCeiler Contributions, AGPL-3.0, with the license
+retained in this directory. Native adaptation by Pluvist.
+
+`OnboardingPage.kt` now replaces the prior Cresto guide with a full-screen flowing
+color welcome, 70dp circular forward button, centered blue step icons and 32sp
+titles, rounded content groups and bottom primary buttons. Xachet retains its
+agreement, account login (password/Cookie/web), permission and widget functions.
+The welcome deliberately has no application emblem, retaining the user's choice.
+Completion uses the same flowing background with an outlined check-circle.
+
+`ProvisionMotion.kt` uses Android RuntimeShader with the original uniforms and
+0.2-resolution offscreen rendering, matching upstream's render scaling. Shader
+initialization runs off the main thread; frame updates only invalidate drawing
+and pause when the step is hidden or the activity is not resumed. The round-button
+reveal and cancellable step transitions are Compose implementations, not the
+OEM-only `fan.transition` runtime, so identical system transition timing is not
+claimed. Account and permission handling continue to use Xachet's repositories.
+
+## Earlier Flutter adaptation
+
 Source: https://github.com/ReChronoRain/HyperCeiler
 Revision: 5e4686069dd7ab1f3697e256d5fc7d68fb73e317
 Copyright (C) 2023-2026 HyperCeiler Contributions. AGPL-3.0.
@@ -36,3 +64,6 @@ readback is capped at 200,000 pixels. Standard navigation uses 400ms; completion
 uses one 600ms route clock shared by home entrance effects. The welcome glow
 pauses while leaving. Completion and automatic refresh start after the handoff;
 no native fan.transition animation implementation is included.
+
+
+2026-11-08: Glasmio guide controls and LiquidMenuMorphMotion replace the earlier Compose circular reveal. The light-mode source shader is retained byte-for-byte. The host prepends a dark-mode uniform and changes only the final colour blend in its compiled variant: both modes use the same upstream simplex-noise/time fields, while dark mode emits blue/purple/pink light over black. Completion is now plain black/white, with a user-supplied SVG foreground recoloured blue; no HyperCeiler system animation runtime is included.

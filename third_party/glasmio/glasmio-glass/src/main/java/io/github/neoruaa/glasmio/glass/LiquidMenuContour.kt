@@ -312,7 +312,7 @@ class LiquidMenuContourWorkspace {
  * The four-pixel sigma bounds the kernel work, as the native renderer bounds its narrow
  * kernel after downsampling. This is a numerical Gaussian approximation, not a shape fit.
  */
-class LiquidMenuGaussianField {
+class LiquidMenuGaussianField(private val maxSamplesPerAxis: Int = 512) {
     var origin: Offset = Offset.Zero
         private set
     var step: Float = 1f
@@ -339,7 +339,12 @@ class LiquidMenuGaussianField {
         if (sigma <= 0.000001f) {
             return deactivate()
         }
-        step = max(2f, sigma / 4f)
+        val bounds = contour.exteriorBounds()
+        // Bound the CPU grid and F16 upload by visible extent, not screen pixel count.
+        // CPU clipping and optical shading still share the exact same sampling lattice.
+        // Small controls retain the original resolution; large windows use at most
+        // roughly 512 samples on their longest axis (plus the derivative halo).
+        step = max(max(2f, sigma / 4f), max(bounds.width, bounds.height) / maxSamplesPerAxis.coerceAtLeast(2))
         val localSigma = sigma / step
         val maximumRadius = ceil(localSigma * 4f).toInt().coerceAtMost(weights.lastIndex)
         var sum = 0f
@@ -358,7 +363,6 @@ class LiquidMenuGaussianField {
         for (index in 1..radius) sum += weights[index] * 2f
         for (index in 0..radius) weights[index] /= sum
 
-        val bounds = contour.exteriorBounds()
         // Coverage probes the field one pixel beyond the moving skin. Keep an output
         // texel on every side so those derivatives never hit the texture clamp. Moving
         // by one whole step preserves the original interior sampling lattice.

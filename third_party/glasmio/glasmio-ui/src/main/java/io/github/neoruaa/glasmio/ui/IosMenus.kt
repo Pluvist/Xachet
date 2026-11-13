@@ -463,6 +463,12 @@ fun GlasmioMenu(
 ) {
     var anchorSize by remember { mutableStateOf(IntSize.Zero) }
     var popupAlive by remember { mutableStateOf(false) }
+    // Own back before the popup attaches and during any nonfocusable closing
+    // flight. Repeated back must not navigate the page beneath a visible menu.
+    androidx.activity.compose.BackHandler(enabled = expanded || popupAlive) {
+        if (expanded) onExpandedChange(false)
+    }
+
     var transitionStarted by remember { mutableStateOf(false) }
     var opensAbove by remember { mutableStateOf(false) }
     var anchorFractionX by remember { mutableFloatStateOf(1f) }
@@ -744,8 +750,11 @@ fun GlasmioMenu(
                 popupPositionProvider = popupPositionProvider,
                 onDismissRequest = { onExpandedChange(false) },
                 properties = PopupProperties(
-                    focusable = expanded,
-                    dismissOnBackPress = expanded,
+                    // Fullscreen menus already handle source taps while collapsing.
+                    // Keep their window focus stable across spring reversals instead
+                    // of reconfiguring the platform window on every interruption.
+                    focusable = expanded || resolvedFullScreen,
+                    dismissOnBackPress = expanded || resolvedFullScreen,
                     dismissOnClickOutside = expanded,
                     clippingEnabled = false,
                 ),

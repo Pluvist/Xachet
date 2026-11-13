@@ -17,6 +17,48 @@ import kotlin.math.ceil
 import kotlin.math.atan2
 
 class LiquidMenuMorphMotionTest {
+    @Test
+    fun largeWindowSamplingBoundsMemoryWithoutMovingVisibleEdges() {
+        for (sigma in listOf(4f, 8f, 16f, 32f)) {
+            val contour = LiquidMenuContour(Rect(0f, 0f, 1216f, 2640f),
+                Offset(80f, 80f), null, Offset.Zero, sigma)
+            val bounded = requireNotNull(LiquidMenuGaussianField().update(contour))
+            val reference = requireNotNull(LiquidMenuGaussianField(Int.MAX_VALUE).update(contour))
+            assertTrue("Grid dimension is bounded", maxOf(bounded.width, bounded.height) <= 516)
+            for (i in 0..80) {
+                val angle = i * PI / 160.0
+                val x = 80f - 80f * cos(angle).toFloat()
+                val y = 80f - 80f * sin(angle).toFloat()
+                assertEquals("Corner distance at sigma=$sigma, sample=$i",
+                    reference.distance(x, y), bounded.distance(x, y), .6f)
+                assertEquals("Straight edge at sigma=$sigma", reference.distance(608f, i.toFloat()),
+                    bounded.distance(608f, i.toFloat()), .01f)
+            }
+        }
+    }
+
+    @Test
+    fun boundedSamplingPreservesInterruptedFullScreenUnion() {
+        val motion = motion(Rect(90f, 1600f, 540f, 1800f), Rect(0f, 0f, 1216f, 2640f))
+        motion.retarget(true)
+        repeat(20) { tick ->
+            if(tick == 10) motion.retarget(false)
+            if(tick == 14) motion.retarget(true)
+            motion.advanceBy(.025f)
+            val shape = contour(motion.frame)
+            val bounded = LiquidMenuGaussianField().update(shape)
+            val reference = LiquidMenuGaussianField(Int.MAX_VALUE).update(shape)
+            if(bounded != null && reference != null) {
+                val boundary = shape.sampleBoundary(Size(1216f, 2640f))
+                for(index in boundary.indices step 2) {
+                    assertEquals("Interrupted union frame $tick point $index",
+                        reference.distance(boundary[index], boundary[index+1]),
+                        bounded.distance(boundary[index], boundary[index+1]), .6f)
+                }
+            }
+        }
+    }
+
     private val source = Rect(676f, 183f, 996f, 321f)
     private val destination = Rect(242f, 185f, 996f, 687f)
 

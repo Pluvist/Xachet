@@ -89,21 +89,18 @@ internal class CourseMorphController {
         intents.dismiss();desired=null;retargeting=false;revision++
     }
     fun refreshedSource(key:String)=sources[key]?.snapshot()
-    var backgroundTapPosition:(Offset)->Offset={it}
     fun outsideTap(){dismiss()}
     fun animationTap(position:Offset) {
         val current=flight
         if(current?.returning!=true&&!retargeting){dismiss();return}
-        val hitPosition=backgroundTapPosition(position)
         // Footer chrome is drawn above page cards, regardless of registration
         // order. Never select a card hidden behind that chrome during return.
         val footer=sources["course-status"]?.snapshot()?.bounds
         val candidates=listOfNotNull(sources["course-status"])+sources.values.toList().asReversed().filter{it.key!="course-status"}
         val source=candidates.firstOrNull{candidate->
-            val sourcePoint=if(candidate.key=="course-status")position else hitPosition
             (candidate.key=="course-status"||footer==null||position.y<footer.top)&&
-            candidate.eligible&&candidate.coordinates?.let{it.isAttached&&it.boundsInRoot().contains(sourcePoint)}==true&&
-                candidate.snapshot()?.bounds?.contains(sourcePoint)==true
+            candidate.eligible&&candidate.coordinates?.let{it.isAttached&&it.boundsInRoot().contains(position)}==true&&
+                candidate.snapshot()?.bounds?.contains(position)==true
         }
         if(BuildConfig.BUILD_TYPE=="preview")android.util.Log.d("CourseMorph","return tap hit=${source!=null}, progress=${flight?.progress?.value}")
         if(source==null)dismiss()

@@ -25,7 +25,8 @@ import kotlinx.coroutines.*
                 GlasmioListRow("上游 Sachet",subtitle="基于 Sachet 二次修改，感谢 wyvern1723 及其贡献者",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/wyvern1723/sachet")))})
                 GlasmioListRow("MeiloX",subtitle="界面与交互参考",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/NEORUAA/MeiloX")))})
                 GlasmioListRow("Glasmio",subtitle="原生组件与液态玻璃渲染",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/NEORUAA/Glasmio")))})
-                GlasmioListRow("Cresto",subtitle="页面转场与引导页设计参考 · Apache-2.0",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/Nevodev/Cresto")))})
+                GlasmioListRow("HyperCeiler",subtitle="引导页布局与原始流光效果 · AGPL-3.0",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/ReChronoRain/HyperCeiler")))})
+                GlasmioListRow("Cresto",subtitle="页面转场参考 · Apache-2.0",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/Nevodev/Cresto")))})
                 GlasmioListRow("MiSans 可变字体",subtitle="本应用使用小米 MiSans 字体，字体版权归小米所有",onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://hyperos.mi.com/font/")))})
             }}
             item{GlasmioGroupedList{
