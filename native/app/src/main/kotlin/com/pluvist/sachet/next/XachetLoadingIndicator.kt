@@ -1,44 +1,102 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.pluvist.sachet.next
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.*
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import io.github.neoruaa.glasmio.core.LocalGlassColors
-import kotlinx.coroutines.delay
 
-/** Glasmio has no progress component. This small UIKit-style indicator uses its
- * semantic colors and suspends its 12 Hz ticker whenever the activity is hidden. */
-@Composable internal fun XachetLoadingIndicator(modifier: Modifier = Modifier, color: Color = LocalGlassColors.current.secondaryContent) {
-    var phase by remember { mutableIntStateOf(0) }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) { delay(83); phase = (phase + 1) % 12 }
+/** Material 3 Expressive morphing polygon loading indicator. */
+@Composable
+internal fun XachetLoadingIndicator(
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    contained: Boolean = false,
+    color: Color = MaterialTheme.colorScheme.primary,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+) {
+    if (contained) {
+        ContainedLoadingIndicator(
+            modifier = modifier.size(size),
+            containerColor = containerColor,
+            indicatorColor = color,
+        )
+    } else {
+        LoadingIndicator(
+            modifier = modifier.size(size),
+            color = color,
+        )
+    }
+}
+
+/** Tonal card displaying an M3 Expressive loading indicator and descriptive status message. */
+@Composable
+internal fun XachetLoadingCard(
+    message: String,
+    modifier: Modifier = Modifier,
+    contained: Boolean = true,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            XachetLoadingIndicator(contained = contained, size = 48.dp)
+            Text(
+                text = message,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinearWavyProgressIndicator(
+                modifier = Modifier.fillMaxWidth(0.55f),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
         }
     }
-    Canvas(modifier.size(28.dp).semantics {
-        contentDescription = "正在加载"; progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
-    }) {
-        val radius = size.minDimension / 2
-        repeat(12) { index ->
-            rotate(index * 30f, center) {
-                drawLine(color.copy(alpha = .18f + .82f * ((index - phase + 12) % 12) / 11),
-                    Offset(center.x, center.y - radius * .48f), Offset(center.x, center.y - radius * .83f),
-                    radius * .15f, StrokeCap.Round)
-            }
+}
+
+/** Compact inline progress indicator for button/chip or header syncing states. */
+@Composable
+internal fun XachetInlineBusyIndicator(
+    label: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        XachetLoadingIndicator(size = 24.dp, contained = false)
+        if (!label.isNullOrBlank()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

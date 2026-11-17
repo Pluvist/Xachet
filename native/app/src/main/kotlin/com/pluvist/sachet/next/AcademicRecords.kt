@@ -1,8 +1,10 @@
 package com.pluvist.sachet.next
 
+import androidx.compose.runtime.Immutable
 import org.json.JSONObject
 import org.jsoup.Jsoup
 
+@Immutable
 data class AcademicRecord(val title:String,val fields:List<Pair<String,String>>)
 object AcademicRecords {
     private fun JSONObject.text(key:String)=if(isNull(key))"" else Jsoup.parseBodyFragment(optString(key)).text().trim()

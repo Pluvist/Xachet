@@ -1,6 +1,7 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.pluvist.sachet.next
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,89 +11,131 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccessTime
-import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import io.github.neoruaa.glasmio.core.G2RoundedRectangle
-import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.core.LocalGlassColors
-import io.github.neoruaa.glasmio.ui.GlasmioCard
 import java.time.LocalDateTime
 
-/** Compact exam card: title/countdown above the time and place, as in the earlier exam page. */
 @Composable
 internal fun ExamCard(
     record: AcademicRecord,
     now: LocalDateTime,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LocalGlassColors.current
     val time = record.fields.firstOrNull { it.first == "考试时间" }?.second.orEmpty()
     val place = record.fields.firstOrNull { it.first == "地点" }?.second.orEmpty()
     val timing = remember(time) { ExamPresentation.parse(time) }
     val countdown = timing?.let { ExamPresentation.countdown(it, now) }
-    GlasmioCard(modifier.fillMaxWidth()) {
-    Column(
-        Modifier.fillMaxWidth()
-            .padding(horizontal = 17.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                record.title,
-                modifier = Modifier.weight(1f),
-                style = IosTypography.callout.copy(fontWeight = FontWeight.Bold),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (countdown != null) {
-                Spacer(Modifier.width(10.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    buildAnnotatedString {
-                        append(countdown.prefix)
-                        if (countdown.value.isNotEmpty()) {
-                            append(" ")
-                            withStyle(SpanStyle(color = colors.accent, fontWeight = FontWeight.Bold,
-                                fontSize = IosTypography.title3.fontSize)) { append(countdown.value) }
-                            append(" ")
-                        }
-                        append(countdown.suffix)
-                    },
-                    style = IosTypography.footnote,
-                    color = colors.content,
-                    maxLines = 1,
+                    text = record.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                if (countdown != null) {
+                    Spacer(Modifier.width(10.dp))
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        ) {
+                            if (countdown.prefix.isNotEmpty()) {
+                                Text(
+                                    text = if (countdown.value.isNotEmpty()) "${countdown.prefix} " else countdown.prefix,
+                                    style = XachetTypeTokens.PillStatus,
+                                    maxLines = 1,
+                                )
+                            }
+                            if (countdown.value.isNotEmpty()) {
+                                RollingNumberText(
+                                    text = countdown.value,
+                                    style = XachetTypeTokens.PillStatus.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = MaterialTheme.typography.titleMedium.fontSize,
+                                    ),
+                                )
+                            }
+                            if (countdown.suffix.isNotEmpty()) {
+                                Text(
+                                    text = if (countdown.value.isNotEmpty()) " ${countdown.suffix}" else countdown.suffix,
+                                    style = XachetTypeTokens.PillStatus,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (time.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.AccessTime,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = time + (timing?.let { "  ${ExamPresentation.weekday(it)}" } ?: ""),
+                        style = XachetTypeTokens.CondensedMeta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (place.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Place,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = place,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-        if (time.isNotBlank()) {
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Outlined.AccessTime, contentDescription = null,
-                    modifier = Modifier.padding(top = 2.dp).size(16.dp), tint = colors.secondaryContent)
-                Spacer(Modifier.width(6.dp))
-                Text(time + (timing?.let { "  ${ExamPresentation.weekday(it)}" } ?: ""),
-                    style = IosTypography.footnote, color = colors.secondaryContent)
-            }
-        }
-        if (place.isNotBlank()) {
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Outlined.Place, contentDescription = null,
-                    modifier = Modifier.padding(top = 2.dp).size(16.dp), tint = colors.secondaryContent)
-                Spacer(Modifier.width(6.dp))
-                Text(place, style = IosTypography.footnote, color = colors.secondaryContent)
-            }
-        }
-    }
     }
 }
 

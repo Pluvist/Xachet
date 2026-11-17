@@ -21,8 +21,10 @@ object CourseReminder {
     private const val ID = -1959
     private const val REQUEST = 9911
     private fun prefs(context: Context) = context.getSharedPreferences("course_preclass_notifications", Context.MODE_PRIVATE)
-    private fun manager(context: Context) = requireNotNull(context.getSystemService(NotificationManager::class.java))
-    private fun alarm(context: Context) = requireNotNull(context.getSystemService(AlarmManager::class.java))
+    private fun manager(context: Context): NotificationManager? =
+        context.getSystemService(NotificationManager::class.java)
+    private fun alarm(context: Context): AlarmManager? =
+        context.getSystemService(AlarmManager::class.java)
     private fun alarmIntent(context: Context, key: String = "", at: Long = 0) = PendingIntent.getBroadcast(context, REQUEST,
         Intent(context, CourseReminderReceiver::class.java).setAction(FIRE).putExtra("key", key).putExtra("at", at),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -31,19 +33,23 @@ object CourseReminder {
         val pending = PendingIntent.getBroadcast(context, REQUEST,
             Intent(context, CourseReminderReceiver::class.java).setAction(FIRE),
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: return
-        alarm(context).cancel(pending)
-        pending.cancel()
+        runCatching { alarm(context)?.cancel(pending) }
+        runCatching { pending.cancel() }
     }
 
-    fun notificationsAllowed(context: Context): Boolean =
-        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
-            manager(context).areNotificationsEnabled() &&
-            manager(context).getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
+    fun notificationsAllowed(context: Context): Boolean {
+        val nm = manager(context) ?: return false
+        return runCatching {
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+                nm.areNotificationsEnabled() &&
+                nm.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
+        }.getOrDefault(false)
+    }
 
     fun status(context: Context): Map<String, Any> = mapOf(
         "enabled" to CourseLiveActivity.data(context).optBoolean("reminderEnabled", true),
         "notifications" to notificationsAllowed(context),
-        "exactAlarms" to alarm(context).canScheduleExactAlarms(),
+        "exactAlarms" to runCatching { alarm(context)?.canScheduleExactAlarms() == true }.getOrDefault(false),
         "scheduledAt" to prefs(context).getLong("at", 0))
 
     private fun delivered(context: Context, now: Long): JSONObject {
@@ -57,16 +63,19 @@ object CourseReminder {
         val now = System.currentTimeMillis()
         val data = CourseLiveActivity.data(context)
         val stored = prefs(context)
-        if (!data.optBoolean("ready") || !data.optBoolean("reminderEnabled", true) || !notificationsAllowed(context)) {
+        val nm = manager(context)
+        if (!data.optBoolean("ready") || !data.optBoolean("reminderEnabled", true) || !notificationsAllowed(context) || nm == null) {
             stored.edit().remove("key").remove("at").apply()
             cancelAlarm(context)
-            manager(context).cancel(TAG, ID)
+            runCatching { nm?.cancel(TAG, ID) }
             return
         }
-        manager(context).createNotificationChannel(NotificationChannel(CHANNEL, "课前提醒", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "普通节次提前10分钟，第1、5节提前20分钟；采用教学楼实际作息"
-            enableVibration(true); setShowBadge(false)
-        })
+        runCatching {
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, "课前提醒", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "普通节次提前10分钟，第1、5节提前20分钟；采用教学楼实际作息"
+                enableVibration(true); setShowBadge(false)
+            })
+        }
         val sent = delivered(context, now)
         val events = CourseReminderPlan.events(CourseTimeline.lessons(data))
         // A live-state boundary and its reminder can share an instant. Reconcile the
@@ -83,17 +92,16 @@ object CourseReminder {
         }
         if (!edit.putString("key", next.key).putLong("at", next.triggerAt).commit()) return
         val pending = alarmIntent(context, next.key, next.triggerAt)
+        val am = alarm(context) ?: return
         // Scheduling with the same PendingIntent replaces its existing alarm. Keep
         // that alarm alive until the replacement is accepted by the system.
         try {
-            if (alarm(context).canScheduleExactAlarms())
-                alarm(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.triggerAt, pending)
-            else alarm(context).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.triggerAt, pending)
+            if (runCatching { am.canScheduleExactAlarms() }.getOrDefault(false))
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.triggerAt, pending)
+            else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.triggerAt, pending)
         } catch (_: SecurityException) {
-            // Permissions can change between query and Binder call. Preserve a best-effort
-            // reminder without claiming exact delivery; late alarms never notify after class starts.
-            alarm(context).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.triggerAt, pending)
-        }
+            runCatching { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.triggerAt, pending) }
+        } catch (_: RuntimeException) { }
     }
 
     @Synchronized internal fun deliver(context: Context, key: String?, at: Long) {
@@ -123,6 +131,6 @@ object CourseReminder {
             .setStyle(Notification.BigTextStyle().bigText(lines.joinToString("\n\n")))
             .setContentIntent(open).setAutoCancel(true).setShowWhen(false)
             .setTimeoutAfter(due.maxOf { it.lesson.start } - now).build()
-        try { manager(context).notify(TAG, ID, notification) } catch (_: SecurityException) { }
+        try { manager(context)?.notify(TAG, ID, notification) } catch (_: RuntimeException) { }
     }
 }

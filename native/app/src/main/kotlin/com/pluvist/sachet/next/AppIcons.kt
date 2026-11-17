@@ -1,105 +1,128 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.pluvist.sachet.next
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Book
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.HistoryEdu
+import androidx.compose.material.icons.rounded.ImportExport
+import androidx.compose.material.icons.rounded.Leaderboard
+import androidx.compose.material.icons.rounded.LocalLibrary
+import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.MeetingRoom
+import androidx.compose.material.icons.rounded.Newspaper
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Timelapse
+import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.github.neoruaa.glasmio.core.LocalGlassColors
 
-internal fun appIcon(key:String):ImageVector=when(key) {
-    "cultivation"->Icons.Default.School
-    "textbooks"->Icons.Default.Book
-    "exams"->Icons.Default.Schedule
-    "grades"->Icons.Default.HistoryEdu
-    "gpa"->Icons.Default.Leaderboard
-    "transcript"->Icons.Default.Description
-    "library"->Icons.Default.LocalLibrary
-    "physics"->Icons.Default.Science
-    "network"->Icons.Default.Wifi
-    "classrooms"->Icons.Default.MeetingRoom
-    "calendar"->Icons.Default.DateRange
-    "news"->Icons.Default.Newspaper
-    "mail"->Icons.Default.Email
-    "devices"->Icons.Default.Devices
-    "portal"->Icons.Default.AccountBalance
-    "website"->Icons.Default.Public
-    "login"->Icons.Default.Person
-    "permissions"->Icons.Default.Notifications
-    "settings"->Icons.Default.Settings
-    "appearance"->Icons.Default.Palette
-    "files"->Icons.Default.ImportExport
-    "fileManager"->Icons.Default.Folder
-    "widget"->Icons.Default.Widgets
-    "logout"->Icons.Default.Logout
-    "source"->Icons.Default.Code
-    "semester"->Icons.Default.CalendarMonth
-    "activity"->Icons.Default.Timelapse
-    "reminders"->Icons.Default.NotificationsActive
-    "theme"->Icons.Default.DarkMode
-    "accent"->Icons.Default.ColorLens
-    else->Icons.Default.Info
+internal fun appIcon(key: String): ImageVector = when (key) {
+    "cultivation" -> Icons.Rounded.School
+    "textbooks" -> Icons.Rounded.Book
+    "exams" -> Icons.Rounded.Schedule
+    "grades" -> Icons.Rounded.HistoryEdu
+    "gpa" -> Icons.Rounded.Leaderboard
+    "transcript" -> Icons.Rounded.Description
+    "library" -> Icons.Rounded.LocalLibrary
+    "physics" -> Icons.Rounded.Science
+    "network" -> Icons.Rounded.Wifi
+    "classrooms" -> Icons.Rounded.MeetingRoom
+    "calendar" -> Icons.Rounded.DateRange
+    "news" -> Icons.Rounded.Newspaper
+    "mail" -> Icons.Rounded.Email
+    "devices" -> Icons.Rounded.Devices
+    "portal" -> Icons.Rounded.AccountBalance
+    "website" -> Icons.Rounded.Public
+    "login" -> Icons.Rounded.Person
+    "permissions" -> Icons.Rounded.Notifications
+    "settings" -> Icons.Rounded.Settings
+    "appearance" -> Icons.Rounded.Palette
+    "files" -> Icons.Rounded.ImportExport
+    "fileManager" -> Icons.Rounded.Folder
+    "widget" -> Icons.Rounded.Widgets
+    "logout" -> Icons.AutoMirrored.Rounded.Logout
+    "source" -> Icons.Rounded.Code
+    "semester" -> Icons.Rounded.CalendarMonth
+    "activity" -> Icons.Rounded.Timelapse
+    "reminders" -> Icons.Rounded.NotificationsActive
+    "theme" -> Icons.Rounded.DarkMode
+    "accent" -> Icons.Rounded.ColorLens
+    else -> Icons.Rounded.AutoAwesome
 }
 
-/** Bright solid badge colors, following the pre-rewrite MiuixIconBadge treatment. */
-internal fun appIconColor(key:String):Color=Color(when(key) {
-    "cultivation", "network", "settings", "devices", "website" -> 0xFF3482FF
-    "textbooks", "portal", "login", "widget" -> 0xFF7962FF
-    "exams", "classrooms", "permissions", "fileManager" -> 0xFFFFA922
-    "grades", "course_done" -> 0xFF28C65B
-    "gpa" -> 0xFFA45AFF
-    "transcript" -> 0xFF328BE8
-    "library" -> 0xFF00B6C7
-    "physics" -> 0xFFF34F85
-    "calendar", "logout" -> 0xFFFF515E
-    "news", "files", "course_running" -> 0xFFFF9822
-    "mail" -> 0xFF3D78FF
-    "appearance" -> 0xFFE74CAF
-    "source" -> 0xFF00BFA5
-    "semester" -> 0xFF3482FF
-    "activity" -> 0xFF25BAA5
-    "reminders" -> 0xFFFFA922
-    "theme" -> 0xFF7962FF
-    "accent" -> 0xFFE74CAF
-    else -> 0xFF3482FF
-})
+@Composable
+internal fun appIconContainerPair(key: String): Pair<Color, Color> {
+    val scheme = MaterialTheme.colorScheme
+    return when (key) {
+        "cultivation", "network", "settings", "semester", "portal", "transcript", "devices", "login" ->
+            scheme.primaryContainer to scheme.onPrimaryContainer
+        "textbooks", "grades", "course_done", "activity", "fileManager", "library", "source" ->
+            scheme.secondaryContainer to scheme.onSecondaryContainer
+        "exams", "gpa", "classrooms", "physics", "appearance", "accent", "theme", "widget", "reminders", "permissions", "files", "news", "mail", "website", "course_running" ->
+            scheme.tertiaryContainer to scheme.onTertiaryContainer
+        "calendar", "logout" ->
+            scheme.errorContainer to scheme.onErrorContainer
+        else -> scheme.primaryContainer to scheme.onPrimaryContainer
+    }
+}
 
-@Composable internal fun AppIconBadge(key:String,compact:Boolean=false) {
-    val tint=appIconColor(key)
-    val isDark=LocalGlassColors.current.isDark
-    val scale=io.github.neoruaa.glasmio.core.LocalGlasmioLayoutFontScale.current.coerceIn(1f,1.35f)
-    val slotSize=(if(compact)30f else 34f)*scale
-    val badgeSize=slotSize*.9f
-    val badgeShape=RoundedCornerShape((badgeSize*.28f).dp)
-    // Cache two soft colored halos behind the opaque badge. The white glyph stays crisp.
-    Box(Modifier.size(slotSize.dp).drawWithCache {
-        val radius=size.width*.72f
-        val alpha=if(isDark) .23f else .32f
-        val left=Offset(size.width*.24f,size.height*.68f)
-        val right=Offset(size.width*.82f,size.height*.30f)
-        val leftGlow=Brush.radialGradient(listOf(tint.copy(alpha=alpha),tint.copy(alpha=alpha*.43f),Color.Transparent),center=left,radius=radius)
-        val rightGlow=Brush.radialGradient(listOf(tint.copy(alpha=alpha*.7f),tint.copy(alpha=alpha*.27f),Color.Transparent),center=right,radius=radius)
-        onDrawBehind {
-            drawCircle(leftGlow,radius,left)
-            drawCircle(rightGlow,radius,right)
-        }
-    },contentAlignment=Alignment.Center) {
-        Box(Modifier.size(badgeSize.dp)
-            .background(tint,badgeShape)
-            .border(.8.dp,Brush.linearGradient(listOf(Color.White.copy(alpha=if(isDark).48f else .88f),Color.White.copy(alpha=.10f),tint.copy(alpha=.46f))),badgeShape),
-            contentAlignment=Alignment.Center) {
-            Icon(appIcon(key),null,Modifier.size((badgeSize*.62f).dp),tint=Color.White)
+/** Tonal M3 Expressive icon badge supporting both MaterialShapes polygons and rounded containers. */
+@Composable
+internal fun AppIconBadge(
+    key: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+    iconSize: Dp = 20.dp,
+    useExpressivePolygon: Boolean = false,
+    shape: Shape = if (useExpressivePolygon) rememberFeaturePolygonShape(key) else MaterialTheme.shapes.medium,
+) {
+    val (container, content) = appIconContainerPair(key)
+    Surface(
+        modifier = modifier.size(size),
+        shape = shape,
+        color = container,
+        contentColor = content,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = appIcon(key),
+                contentDescription = null,
+                modifier = Modifier.size(iconSize),
+            )
         }
     }
 }

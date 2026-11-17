@@ -3,6 +3,7 @@ package com.pluvist.sachet.next
 import android.content.Context
 import android.util.AtomicFile
 import android.util.Base64
+import androidx.compose.runtime.Immutable
 import com.it_nomads.fluttersecurestorage.FlutterSecureStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -22,6 +23,7 @@ import javax.crypto.Cipher
 import java.time.*
 
 class SessionExpired : IllegalStateException("登录状态已过期")
+@Immutable
 data class Account(val name:String="",val studentID:String="",val cookie:String="",val password:String="") {
     fun json()=JSONObject().put("name",name).put("studentID",studentID).put("cookie",cookie).put("password",password)
 }
@@ -142,6 +144,7 @@ class AcademicHttp {
     }
 }
 
+@Immutable
 data class QueryFeature(val key:String,val title:String,val index:String,val query:String) {
     companion object {
         val all=listOf(
@@ -153,8 +156,11 @@ data class QueryFeature(val key:String,val title:String,val index:String,val que
             QueryFeature("cultivation","培养方案","jxzxjhgl/jxzxjhck_cxJxzxjhckIndex.html?gnmkdm=N153540&layout=default","jxzxjhgl/jxzxjhck_cxJxzxjhckIndex.html?doType=query&gnmkdm=N153540"))
     }
 }
+@Immutable
 data class QueryChoice(val key:String,val label:String,val values:List<Pair<String,String>>,val selected:String)
+@Immutable
 data class CachedQuery(val parameters:Map<String,String>,val rows:List<JSONObject>,val savedAt:Long)
+@Immutable
 data class ManagedDataFile(val path:String,val name:String,val kind:String,val bytes:Long)
 
 class AcademicRepository(private val context:Context) {
@@ -202,7 +208,9 @@ class AcademicRepository(private val context:Context) {
         updateSettings("保存配色失败"){it.put("courseColorFilePath",file.baseFile.path)}
         colors()
     }
-    fun hasSchedule()=File(context.filesDir,"native-schedule.json").exists() || settings().optString("classScheduleFilePath").takeIf{it.isNotBlank()}?.let{File(it).isFile}==true
+    fun hasSchedule()=File(context.filesDir,"native-schedule.json").exists() ||
+        settings().optString("classScheduleFilePath").takeIf{it.isNotBlank()}?.let{File(it).isFile}==true ||
+        synchronized(scheduleDataLock){readCustomCoursesSnapshot().isNotEmpty()}
     private suspend fun <T> authorized(action:(Account)->T):T = withContext(Dispatchers.IO) {
         val account=accounts.read()
         require(account.cookie.isNotBlank() || account.password.isNotBlank()) { "请先登录教务账号" }
@@ -279,7 +287,7 @@ class AcademicRepository(private val context:Context) {
         val document=Jsoup.parse(html)
         fun selected(id:String)=document.selectFirst("select#$id option[selected]")?.attr("value") ?: document.selectFirst("select#$id option")?.attr("value") ?: error("无法读取当前学期")
         val body=http.authenticated("kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151",account.cookie,mapOf("xnm" to selected("xnm"),"xqm" to selected("xqm"),"kzlx" to "ck","xsdm" to "","kclbdm" to ""))
-        val parsed=applyRoutines(CourseParser.fromServer(body))
+        CourseParser.fromServer(body)
         check(accounts.read().cookie==account.cookie) { "账号已变更，未保存旧账号的课表" }
         val calendar=runCatching{http.authenticated("xtgl/index_cxAreaFive.html?localeKey=zh_CN&gnmkdm=index",account.cookie)}.getOrNull()
         calendar?.let {
@@ -291,20 +299,60 @@ class AcademicRepository(private val context:Context) {
             val file=AtomicFile(File(context.filesDir,"native-schedule.json"))
             val output=file.startWrite()
             try { output.write(body.toByteArray()); file.finishWrite(output) } catch(error:Throwable) { file.failWrite(output); throw error }
-            publish(parsed)
+            cachedSnapshot().also{publish(it)}
         }
-        parsed
     } }
     suspend fun cached():List<Course> = withContext(Dispatchers.IO) { synchronized(scheduleDataLock){cachedSnapshot()} }
-    private fun cachedSnapshot():List<Course> {
+    private fun readBaseScheduleSnapshot():List<Course> {
         val file=AtomicFile(File(context.filesDir,"native-schedule.json"))
-        return if(file.baseFile.exists()) applyRoutines(CourseParser.fromServer(String(file.readFully()))) else {
+        return if(file.baseFile.exists()) CourseParser.fromServer(String(file.readFully())) else {
             val path=settings().optString("classScheduleFilePath")
             if(path.isBlank()) emptyList() else {
                 val legacy=File(path).canonicalFile
                 require(legacy.toPath().startsWith(context.filesDir.canonicalFile.toPath())) { "原课表路径无效" }
-                if(legacy.isFile)applyRoutines(CourseParser.fromLegacy(legacy.readText()))else emptyList()
+                if(legacy.isFile)CourseParser.fromLegacy(legacy.readText())else emptyList()
             }
+        }
+    }
+    private fun customCoursesFile()=File(context.filesDir,"native-custom-courses.json")
+    private fun readCustomCoursesSnapshot():List<Course> {
+        val file=AtomicFile(customCoursesFile())
+        return if(file.baseFile.exists()) CustomCourseCodec.parse(String(file.readFully())) else emptyList()
+    }
+    private fun writeCustomCoursesSnapshot(courses:List<Course>) {
+        val atomic=AtomicFile(customCoursesFile())
+        val stream=atomic.startWrite()
+        try { stream.write(CustomCourseCodec.serialize(courses).toByteArray()); atomic.finishWrite(stream) }
+        catch(e:Throwable) { atomic.failWrite(stream); throw e }
+    }
+    private fun cachedSnapshot():List<Course> = applyRoutines(readBaseScheduleSnapshot()+readCustomCoursesSnapshot())
+
+    suspend fun addCustomCourse(course:Course):List<Course> = withContext(Dispatchers.IO) {
+        val cleanTitle=course.title.trim()
+        require(cleanTitle.isNotBlank()) { "请输入课程名称" }
+        require(course.weekday in 1..7) { "请选择上课星期" }
+        require(course.first in 1..11 && course.last in course.first..11) { "请选择有效节次" }
+        require(course.weeks.isNotEmpty() && course.weeks.all{it in 1..60}) { "请选择至少一周上课周数" }
+        val normalized=course.copy(
+            id=if(course.id.startsWith(CustomCourseCodec.ID_PREFIX)) course.id else "${CustomCourseCodec.ID_PREFIX}${java.util.UUID.randomUUID()}",
+            title=cleanTitle,
+            place=course.place.trim(),
+            teacher=course.teacher.trim(),
+        )
+        synchronized(scheduleDataLock) {
+            val nextCustom=readCustomCoursesSnapshot().filterNot{it.id==normalized.id}+normalized
+            writeCustomCoursesSnapshot(nextCustom)
+            cachedSnapshot().also{publish(it)}
+        }
+    }
+
+    suspend fun updateCustomCourse(course:Course):List<Course> = addCustomCourse(course)
+
+    suspend fun deleteCustomCourse(courseId:String):List<Course> = withContext(Dispatchers.IO) {
+        synchronized(scheduleDataLock) {
+            val nextCustom=readCustomCoursesSnapshot().filterNot{it.id==courseId}
+            writeCustomCoursesSnapshot(nextCustom)
+            cachedSnapshot().also{publish(it)}
         }
     }
     private fun routineKey(course:Course)=JSONArray(listOf((course.weekday-1)*5+(course.first-1)/2,course.title,course.teacher,course.place,course.last-course.first+1)).toString()
@@ -412,6 +460,8 @@ class AcademicRepository(private val context:Context) {
     private fun publish(courses:List<Course>) {
         val settings=settings();val semester=semester()
         val data=JSONObject().put("ready",hasSchedule()).put("semester",semester.toString()).put("themeMode",settings.optInt("themeMode",0))
+            .put("themeColor",settings.optString("themeColor","#9F181E"))
+            .put("useDynamicColor",settings.optBoolean("useDynamicColor",false))
             .put("liveActivityEnabled",settings.optBoolean("isEnableCourseLiveActivity",true))
             .put("reminderEnabled",settings.optBoolean("isEnableCourseReminders",true))
         val lessons=JSONArray(); val zone=ZoneId.systemDefault(); val first=LocalDate.now().minusDays(1)

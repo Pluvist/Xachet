@@ -113,10 +113,15 @@ class NotificationDeliveryProbe : Instrumentation() {
             val currentStart = (now - 1_000).coerceAtLeast(midnight)
             install(context, true, false, lesson(currentStart, now + 120_000, 3))
             val current = awaitNotification(manager, LIVE) ?: error("Current-class notification missing")
-            check(current.notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString().matches(Regex("[0-9]{2}:[0-9]{2}(?::[0-9]{2})?"))) {
-                "Countdown title contains non-numeric content"
+            val currentTitle = current.notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString()
+            val currentText = current.notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString()
+            check(currentTitle.contains(TITLE) && Regex("[0-9]{2}:[0-9]{2}").containsMatchIn(currentTitle)) {
+                "Countdown title must include course title and countdown"
             }
-            check(current.notification.extras.getCharSequence(Notification.EXTRA_TEXT).isNullOrEmpty()) { "Countdown compact content contains a label" }
+            check(currentText.isNotBlank()) { "Countdown content missing next class summary" }
+            check(current.notification.extras.getInt(Notification.EXTRA_PROGRESS_MAX) > 0) {
+                "Countdown notification must include a progress bar"
+            }
             check(current.notification.flags and Notification.FLAG_ONGOING_EVENT != 0) { "Current class is not ongoing" }
             result.putBoolean("case_countdown", true)
             result.putBoolean("promotionSupported", CourseLiveActivity.supportsPromotion())
@@ -135,8 +140,8 @@ class NotificationDeliveryProbe : Instrumentation() {
                 val waiting = awaitNotification(manager, LIVE) ?: error("Waiting-class notification missing")
                 val title = waiting.notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString()
                 val body = waiting.notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString()
-                check(title.contains(time(waitingStart)) && title.contains(PLACE)) { "Waiting title must contain class time and place" }
-                check(body.contains(TITLE) && body.contains("45分钟")) { "Waiting content must contain course and duration" }
+                check(title.contains(TITLE) && Regex("[0-9]{2}:[0-9]{2}").containsMatchIn(title)) { "Waiting title must contain course title and countdown" }
+                check(body.contains(PLACE)) { "Waiting content must contain exact classroom place" }
                 result.putBoolean("case_waiting", true)
             } else result.putString("case_waiting", "skipped_at_midnight_boundary")
             progress("case.passed")

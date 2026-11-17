@@ -67,13 +67,49 @@ class CourseTimelineTest {
         assertFalse(CourseTimeline.promote(state("18:00"), t("18:00")))
     }
 
-    @Test fun alarmsAdvanceAtPromotionStartClassStartEndAndNextClass() {
+    @Test fun alarmsAdvanceAtPromotionStartFiveMinMarkClassStartEndAndNextClass() {
         fun wake(time: String) = CourseTimeline.nextWake(t(time), lessons, state(time), zone = zone)
         assertEquals(t("07:40"), wake("06:00"))
-        assertEquals(t("08:10"), wake("07:40"))
+        assertEquals(t("08:05"), wake("07:40"))
+        assertEquals(t("08:10"), wake("08:05"))
         assertEquals(t("08:55"), wake("08:10"))
-        assertEquals(t("09:05"), wake("08:55"))
+        assertEquals(t("09:00"), wake("08:55"))
+        assertEquals(t("09:05"), wake("09:00"))
         assertEquals(t("09:50"), wake("09:05"))
+    }
+
+    @Test fun courseLivePresentationFormatsInClassBreaksAndFocusDemotionCorrectly() {
+        // In-class: title shows course + countdown, content shows next course + place, progress bar enabled, shortText is countdown
+        val inClass = CourseTimeline.present(state("08:15"), t("08:15"), focusLiveActive = false)
+        assertEquals("数学 · 40:00", inClass.title)
+        assertEquals("下一节：数学 · 逸夫楼201", inClass.content)
+        assertEquals("40:00", inClass.shortText)
+        assertTrue(inClass.hasProgress)
+        assertEquals(45 * 60, inClass.progressMax)
+        assertEquals(5 * 60, inClass.progressCurrent)
+        assertTrue(inClass.requestPromoted)
+
+        // Break <= 5 min remaining (09:02 -> 09:05): collapsed shows countdown
+        val shortBreak = CourseTimeline.present(state("09:02"), t("09:02"), focusLiveActive = false)
+        assertEquals("数学 · 03:00", shortBreak.title)
+        assertEquals("上课地点：逸夫楼201", shortBreak.content)
+        assertEquals("03:00", shortBreak.shortText)
+        assertFalse(shortBreak.hasProgress)
+        assertTrue(shortBreak.requestPromoted)
+
+        // Break > 5 min remaining (10:00 -> 14:00): collapsed shows classroom place
+        val longBreak = CourseTimeline.present(state("10:00"), t("10:00"), focusLiveActive = false)
+        assertEquals("物理 · 04:00:00", longBreak.title)
+        assertEquals("上课地点：第一教学楼102", longBreak.content)
+        assertEquals("第一教学楼102", longBreak.shortText)
+        assertFalse(longBreak.hasProgress)
+        assertTrue(longBreak.requestPromoted)
+
+        // When Tomato Focus Live Activity occupies the promoted slot, Course Live Activity demotes to regular notification
+        val demotedInClass = CourseTimeline.present(state("08:15"), t("08:15"), focusLiveActive = true)
+        assertFalse(demotedInClass.requestPromoted)
+        val demotedBreak = CourseTimeline.present(state("09:02"), t("09:02"), focusLiveActive = true)
+        assertFalse(demotedBreak.requestPromoted)
     }
 
     @Test fun dismissalSkipsTheRestOfTodayAndResumesOnNextTeachingDay() {

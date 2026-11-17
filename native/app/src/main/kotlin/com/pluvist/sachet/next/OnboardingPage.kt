@@ -1,6 +1,5 @@
-/* HyperCeiler provision layout adapted to Compose (AGPL-3.0).
- * Copyright (C) 2023-2026 HyperCeiler Contributions; 2026 Pluvist.
- * Sources and adaptation boundaries: third_party/hyperceiler/SOURCES.md. */
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+
 package com.pluvist.sachet.next
 
 import android.Manifest
@@ -9,404 +8,924 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
-import io.github.neoruaa.glasmio.core.*
-import io.github.neoruaa.glasmio.ui.*
-import io.github.neoruaa.glasmio.glass.*
-import io.github.neoruaa.glasmio.glass.render.backdrops.rememberCanvasBackdrop
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/** The application/login state is kept outside the animated pages. Going back,
- * rotating or interrupting a transition never creates a second login request. */
-@Composable internal fun OnboardingPage(data: AppData, vm: SachetViewModel,
-    programs: LiquidMenuShaderPrograms?, onComplete: (Rect) -> Unit) {
+@Composable
+internal fun OnboardingScreen(
+    data: AppData,
+    vm: SachetViewModel,
+    onFinished: () -> Unit,
+) {
     var page by rememberSaveable { mutableIntStateOf(0) }
+    var previousPage by rememberSaveable { mutableIntStateOf(0) }
     var agreed by rememberSaveable { mutableStateOf(false) }
-    var id by rememberSaveable { mutableStateOf(data.account.studentID) }
+    var studentId by rememberSaveable { mutableStateOf(data.account.studentID) }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var rememberPassword by rememberSaveable { mutableStateOf(true) }
     var cookieMode by rememberSaveable { mutableStateOf(false) }
     var cookie by remember { mutableStateOf("") }
     var webLogin by rememberSaveable { mutableStateOf(false) }
     var finishing by remember { mutableStateOf(false) }
     var finishError by remember { mutableStateOf<String?>(null) }
+
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val focus = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    val colors = LocalGlassColors.current
-    val dark = colors.isDark
-    val background = if (dark) Color.Black else Color.White
-    val reveal = remember { LiquidMenuMorphMotion() }
-    val density = LocalDensity.current
-    var revealing by remember { mutableStateOf(false) }
-    val collapse = remember { Animatable(0f) }
-    var collapsing by remember { mutableStateOf(false) }
-    val collapseShader = rememberProvisionCollapseShader()
-    var revealJob by remember { mutableStateOf<Job?>(null) }
-    var arrowBounds by remember { mutableStateOf(Rect.Zero) }
-    var rootBounds by remember { mutableStateOf(Rect.Zero) }
-    var finishBounds by remember { mutableStateOf(Rect.Zero) }
-    val showWelcome = page == 0 || revealing
-    val showSteps = page > 0 || revealing
-    val completionStarted by remember { derivedStateOf { page == 4 || (collapsing && collapse.value > .62f) } }
-    val shader = rememberProvisionShader()
-    val success = rememberProvisionSuccess()
-    val status by rememberBackgroundSetupStatus(page == 3 && !webLogin)
-    val live = status["live"] as? Map<*, *>
-    val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        scope.launch { BackgroundSetupSettings.refreshCourses(context) }
+    val activity = remember(context) { context.findActivity() }
+    val permissionStatus by rememberBackgroundSetupStatus(page == 3 && !webLogin)
+    val requestNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) vm.onNotificationPermissionChanged() else vm.onForeground()
     }
-    fun next(target: Int) {
-        focus.clearFocus(); keyboard?.hide()
-        if (page == 3 && target == 4) {
-            if (collapsing) return
-            revealJob?.cancel()
-            collapsing = true
-            revealJob = scope.launch {
-                collapse.animateTo(1f, tween(620, easing = CubicBezierEasing(.6f, 0f, .25f, 1f)))
-                page = 4; collapsing = false
+
+    fun goTo(target: Int) {
+        previousPage = page
+        page = target.coerceIn(0, 4)
+        vm.dismissMessage()
+    }
+
+    fun completeOnboarding() {
+        if (finishing) return
+        finishing = true
+        finishError = null
+        scope.launch {
+            runCatching {
+                vm.saveSettings(mapOf("hasReadDisclaimer" to true))
+            }.onSuccess {
+                onFinished()
+            }.onFailure { err ->
+                finishing = false
+                finishError = err.message ?: "保存设置失败，请重试"
             }
-            return
         }
-        if (collapsing) { revealJob?.cancel(); collapsing = false }
-        if (target == 0 || page == 0) {
-            if (arrowBounds.isEmpty || rootBounds.isEmpty) {
-                // A restored non-welcome page has no measured arrow yet. Returning
-                // must still work after process recreation; layout can repopulate it.
-                if (target == 0) { revealJob?.cancel(); revealing = false; page = 0 }
-                return
-            }
-            revealJob?.cancel()
-            if (!reveal.initialized) reveal.initialize(arrowBounds.translate(-rootBounds.topLeft),
-                Rect(Offset.Zero, rootBounds.size), 0f, density.density)
-            else { reveal.updateSource(arrowBounds.translate(-rootBounds.topLeft)); reveal.updateTarget(Rect(Offset.Zero, rootBounds.size), 0f) }
-            page = target
-            revealing = true
-            revealJob = scope.launch {
-                reveal.animateTo(target != 0)
-                revealing = false
+    }
+
+    val stepBackState = rememberPredictiveBackState(enabled = !webLogin && page in 1..3) {
+        goTo(page - 1)
+    }
+    val webBackState = rememberPredictiveBackState(enabled = webLogin) {
+        webLogin = false
+    }
+    val outerMotionScheme = MaterialTheme.motionScheme
+
+    AnimatedContent(
+        targetState = webLogin,
+        transitionSpec = { ExpressiveMotion.directionalSlideTransform(outerMotionScheme, targetState) },
+        label = "OnboardingWebLoginTransition",
+    ) { showWebLogin ->
+        if (showWebLogin) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .predictiveBackContainer(webBackState),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                WebLoginPage(
+                    vm = vm,
+                    onAuthenticated = {
+                        webLogin = false
+                        goTo(3)
+                    },
+                    onBack = { webLogin = false },
+                )
             }
         } else {
-            scope.launch { collapse.snapTo(0f); page = target }
-        }
-    }
-    fun finish() {
-        if (finishing || collapsing) return
-        finishing = true; finishError = null
-        scope.launch {
-            try {
-                vm.saveSettings(mapOf("hasReadDisclaimer" to true))
-                onComplete(finishBounds)
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { finishError = "保存设置失败，请重试"; finishing = false }
-        }
-    }
-    BackHandler(page > 0 && !webLogin && !finishing) { next(page - 1) }
-    BackHandler(webLogin) { webLogin = false }
-    if (webLogin) {
-        WebLoginPage(vm, onAuthenticated = { webLogin = false; next(3) }) { webLogin = false }
-        return
-    }
-    GlasmioBackdropHost(Modifier.fillMaxSize().onGloballyPositioned { rootBounds = it.boundsInRoot() },
-        sampledContent = {
-            Box(Modifier.fillMaxSize().background(background)) {
-                if (showWelcome) ProvisionGlow(shader, active = !revealing && !finishing, dark = dark)
-            }
-        }, overlayContent = {
-        if (showWelcome) ProvisionWelcome(active = page == 0, onStart = { next(1) },
-            onArrowBounds = { arrowBounds = it }, modifier = Modifier.zIndex(if (page == 0) 1f else 0f)
-                .graphicsLayer { alpha = if (revealing && reveal.initialized) reveal.frame.sourceOpacity else 1f }
-                .then(if (page == 0) Modifier else Modifier.clearAndSetSemantics {}))
-        // Keep the completed page at one stable call site while the permissions
-        // layer contracts over it. Its vector starts before the last collapse frame.
-        if (page == 4 || collapsing) GuidePageBackdrop(background) { ProvisionComplete(success, active = completionStarted,
-            busy = finishing || collapsing, error = finishError, onBack = { next(3) },
-            onComplete = { finish() }, onButtonBounds = { finishBounds = it }) }
-        if (showSteps && page != 4) {
-            ProvisionLiquidWindow(reveal, showSteps, revealing, programs, expanded = page > 0) {
-                GuidePageBackdrop(background) {
-                AnimatedContent(targetState = page.coerceAtLeast(1), modifier = Modifier.fillMaxSize(),
-                    transitionSpec = {
-                        val direction = if (targetState > initialState) 1 else -1
-                        if (targetState == 4) fadeIn(tween(280)) togetherWith fadeOut(tween(60))
-                        else (fadeIn(tween(240)) + slideInHorizontally(spring(.92f, 330f)) { direction * it / 9 }) togetherWith
-                            (fadeOut(tween(180)) + slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -direction * it / 12 })
-                    }, label = "Provision steps") { step ->
-                    val busy = finishing || collapsing || (step == 2 && data.loading)
-                    val enabled = !busy && page == step && (step != 1 || agreed) &&
-                        (step != 2 || if (cookieMode) cookie.isNotBlank() else id.isNotBlank() && password.isNotBlank())
-                    val submit: () -> Unit = {
-                        when (step) {
-                            2 -> if (cookieMode) vm.cookieLogin(cookie) { if (page == 2) next(3) }
-                                else vm.login(id.trim(), password, rememberPassword) { if (page == 2) next(3) }
-                            else -> next(step + 1)
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (page in 1..3) Modifier.predictiveBackContainer(stepBackState) else Modifier,
+                    ),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (page in 1..3) {
+                        val stepProgress by animateFloatAsState(
+                            targetValue = page / 3f,
+                            animationSpec = ExpressiveMotion.spatialDefault(),
+                            label = "OnboardingStepProgress",
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 560.dp)
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                IconButton(onClick = { goTo(page - 1) }) {
+                                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "上一步")
+                                }
+                                Text(
+                                    text = "第 $page / 3 步",
+                                    style = MaterialTheme.typography.labelLargeEmphasized.tabular(),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            LinearWavyProgressIndicator(
+                                progress = { stepProgress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            )
                         }
                     }
-                    Box(Modifier.fillMaxSize().provisionCollapse(collapseShader, collapse, step == 3)) {
-                    ProvisionStep(
-                        title = when (step) { 1 -> "协议与声明"; 2 -> "登录账号"; else -> "权限与服务" },
-                        icon = when (step) { 1 -> Icons.AutoMirrored.Outlined.Article; 2 -> Icons.Outlined.AccountCircle; else -> Icons.Outlined.VerifiedUser },
-                        button = when (step) { 1 -> "同意并继续"; 2 -> "登录并继续"; else -> "继续" },
-                        enabled = enabled, busy = busy, background = background,
-                        onBack = { next(step - 1) }, onNext = submit) {
-                        when (step) {
-                            1 -> {
-                                GuideGroup(
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                    GuideParagraph("欢迎使用 Xachet。请阅读以下说明，了解账号与课程数据的使用方式。")
-                                    GuideParagraph("账号及记住的密码通过本机密钥加密保存，仅用于登录学校教务系统。课表缓存在本机，用于离线显示、桌面小组件和课程通知。")
-                                    GuideParagraph("Xachet 由 Pluvist 基于开源项目 Sachet 二次开发，感谢上游作者与开源贡献者。")
-                                    GuideTextAction("查看开源项目与许可", true) {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Pluvist/Xachet")))
+
+                    val motionScheme = MaterialTheme.motionScheme
+                    AnimatedContent(
+                        targetState = page,
+                        transitionSpec = {
+                            ExpressiveMotion.directionalSlideTransform(motionScheme, targetState >= previousPage)
+                        },
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        label = "OnboardingPageTransition",
+                    ) { currentStep ->
+                        when (currentStep) {
+                            0 -> OnboardingWelcomeStep(onStart = { goTo(1) })
+                            1 -> OnboardingAgreementStep(
+                                agreed = agreed,
+                                onAgreedChange = { agreed = it },
+                                onOpenSource = {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Pluvist/Xachet")),
+                                    )
+                                },
+                                onContinue = { goTo(2) },
+                            )
+
+                            2 -> OnboardingLoginStep(
+                                studentId = studentId,
+                                onStudentIdChange = {
+                                    studentId = it
+                                    vm.dismissMessage()
+                                },
+                                password = password,
+                                onPasswordChange = {
+                                    password = it
+                                    vm.dismissMessage()
+                                },
+                                passwordVisible = passwordVisible,
+                                onTogglePasswordVisible = { passwordVisible = !passwordVisible },
+                                rememberPassword = rememberPassword,
+                                onRememberPasswordChange = { rememberPassword = it },
+                                cookieMode = cookieMode,
+                                onCookieModeChange = {
+                                    cookieMode = it
+                                    vm.dismissMessage()
+                                },
+                                cookie = cookie,
+                                onCookieChange = {
+                                    cookie = it
+                                    vm.dismissMessage()
+                                },
+                                loading = data.loading,
+                                errorMessage = data.message,
+                                onDismissError = vm::dismissMessage,
+                                onWebLogin = { webLogin = true },
+                                onSkip = {
+                                    vm.dismissMessage()
+                                    goTo(3)
+                                },
+                                onSubmit = {
+                                    if (cookieMode) {
+                                        vm.cookieLogin(cookie) { goTo(3) }
+                                    } else {
+                                        vm.login(studentId.trim(), password, rememberPassword) { goTo(3) }
                                     }
-                                }
-                                GuideCheck("我已阅读并同意以上声明", agreed, { agreed = it })
-                            }
-                            2 -> {
-                                GuideParagraph("使用湘潭大学教务账号，同步课程与教务信息。")
-                                if (cookieMode) {
-                                    GuideGroup(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("教务 Cookie", style = IosTypography.callout, color = colors.content)
-                                        GlasmioTextField(cookie, { cookie = it; vm.dismissMessage() }, placeholder = "请输入教务 Cookie", visualTransformation = PasswordVisualTransformation())
+                                },
+                            )
+
+                            3 -> OnboardingPermissionStep(
+                                status = permissionStatus,
+                                activity = activity,
+                                onRequestNotifications = {
+                                    activity?.let { act ->
+                                        BackgroundSetupSettings.requestNotifications(act) {
+                                            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
                                     }
-                                } else {
-                                    GuideGroup(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("学号", style = IosTypography.callout, color = colors.content)
-                                        GlasmioTextField(id, { id = it; vm.dismissMessage() }, placeholder = "请输入学号", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                                },
+                                onOpenSetting = { kind ->
+                                    activity?.let { BackgroundSetupSettings.open(it, kind) }
+                                },
+                                onPinWidget = {
+                                    val manager = runCatching { AppWidgetManager.getInstance(context) }.getOrNull()
+                                    if (manager != null && runCatching { manager.isRequestPinAppWidgetSupported }.getOrDefault(false)) {
+                                        runCatching {
+                                            manager.requestPinAppWidget(
+                                                ComponentName(context, CourseWidgetProvider::class.java),
+                                                null,
+                                                null,
+                                            )
+                                        }
                                     }
-                                    GuideGroup(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("密码", style = IosTypography.callout, color = colors.content)
-                                        GlasmioTextField(password, { password = it; vm.dismissMessage() }, placeholder = "默认密码为 Xtu@身份证后六位", visualTransformation = PasswordVisualTransformation())
-                                    }
-                                    GuideCheck("记住密码", rememberPassword, { rememberPassword = it })
-                                }
-                                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-                                    GuideTextAction(if (cookieMode) "学号密码登录" else "Cookie 登录", !busy && page == step) { cookieMode = !cookieMode; vm.dismissMessage() }
-                                    GuideTextAction("网页登录", !busy && page == step) { webLogin = true }
-                                    GuideTextAction("稍后登录", !busy && page == step) { vm.dismissMessage(); next(3) }
-                                }
-                                data.message?.let { Text(it, color = colors.destructive, style = IosTypography.footnote) }
-                            }
-                            3 -> {
-                                GuideParagraph("开启所需权限，让课前提醒和课程实时状态及时出现。你也可以稍后在设置中调整。")
-                                GlasmioGroupedList {
-                                    GuidePermission(Icons.Outlined.Notifications, "通知权限",
-                                        if (status.isEmpty()) "正在读取" else if (status["notifications"] == true) "已开启" else "未开启", status["notifications"] == true) {
-                                        BackgroundSetupSettings.requestNotifications(context as Activity) { requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) }
-                                    }
-                                    GuidePermission(Icons.Outlined.Timer, "实时活动",
-                                        if (status.isEmpty()) "正在读取" else if (live?.get("supported") != true) "使用持续课程通知" else if (live["promoted"] == true) "已开启" else "前往开启", live?.get("promoted") == true) {
-                                        BackgroundSetupSettings.open(context as Activity, "live")
-                                    }
-                                    GuidePermission(Icons.Outlined.Alarm, "准时提醒",
-                                        if (status.isEmpty()) "正在读取" else if (live?.get("exactAlarms") == true) "已开启" else "允许闹钟和提醒", live?.get("exactAlarms") == true) {
-                                        BackgroundSetupSettings.open(context as Activity, "exactAlarms")
-                                    }
-                                    GuidePermission(Icons.Outlined.BatteryChargingFull, "后台运行",
-                                        if (status.isEmpty()) "正在读取" else if (status["batteryUnrestricted"] == true) "已允许" else "允许无限制运行", status["batteryUnrestricted"] == true) {
-                                        BackgroundSetupSettings.open(context as Activity, "battery")
-                                    }
-                                    GuidePermission(Icons.Outlined.RestartAlt, "自启动", "请在系统设置中确认", false) {
-                                        BackgroundSetupSettings.open(context as Activity, "autostart")
-                                    }
-                                }
-                                GuideParagraph("第 1、5 节课提前 20 分钟提醒，其他节次提前 10 分钟提醒。")
-                                GlasmioGroupedList {
-                                    GuidePermission(Icons.Outlined.Widgets, "桌面小组件",
-                                        if ((status["widgetCount"] as? Int ?: 0) > 0) "已添加 · 点击添加更多" else "添加课程到桌面", (status["widgetCount"] as? Int ?: 0) > 0) {
-                                        val manager = AppWidgetManager.getInstance(context)
-                                        if (manager.isRequestPinAppWidgetSupported) manager.requestPinAppWidget(ComponentName(context, CourseWidgetProvider::class.java), null, null)
-                                    }
-                                }
-                                GuideParagraph("也可以长按桌面，在小组件列表选择 Xachet。自启动状态请以系统设置为准。")
-                            }
+                                },
+                                onContinue = { goTo(4) },
+                            )
+
+                            else -> OnboardingDoneStep(
+                                finishing = finishing,
+                                errorMessage = finishError,
+                                onFinish = ::completeOnboarding,
+                            )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingWelcomeStep(onStart: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "WelcomeShapeOrbit")
+    val spin by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 28_000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "WelcomeHaloSpin",
+    )
+    val morphFraction by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3200),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "WelcomeShapeMorph",
+    )
+    val heroBadgeShape = rememberMorphShape(
+        from = MaterialShapes.Clover4Leaf,
+        to = MaterialShapes.Cookie6Sided,
+        progress = morphFraction,
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 480.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(164.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .size(164.dp)
+                        .graphicsLayer { rotationZ = spin },
+                    shape = MaterialShapes.VerySunny.toShape(),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                ) {}
+                Surface(
+                    modifier = Modifier.size(116.dp),
+                    shape = heroBadgeShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.School,
+                            contentDescription = null,
+                            modifier = Modifier.size(52.dp),
+                        )
                     }
                 }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "Xachet",
+                    style = XachetTypeTokens.BrandHero,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "湘潭大学教务助手",
+                    style = MaterialTheme.typography.titleLargeEmphasized,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "课表、错峰作息、实时活动与教务查询\n现在开启全新 Material 3 Expressive 体验",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onStart,
+                shapes = ButtonDefaults.shapes(),
+                contentPadding = ButtonDefaults.LargeContentPadding,
+            ) {
+                Text("开始配置", style = MaterialTheme.typography.titleMediumEmphasized)
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingAgreementStep(
+    agreed: Boolean,
+    onAgreedChange: (Boolean) -> Unit,
+    onOpenSource: () -> Unit,
+    onContinue: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 520.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "协议与声明",
+                style = MaterialTheme.typography.headlineLargeEmphasized,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = "欢迎使用 Xachet。请阅读以下说明，了解账号与课程数据的使用方式。",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = "账号及记住的密码通过本机密钥加密保存，仅用于登录学校教务系统。课表缓存在本机，用于离线显示、桌面小组件和课程通知。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "Xachet 由 Pluvist 基于开源项目 Sachet 二次开发，感谢上游作者与开源贡献者。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(
+                        onClick = onOpenSource,
+                        shapes = ButtonDefaults.shapes(),
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("查看开源项目与许可")
+                    }
+                }
+            }
+            ExpressiveSegmentedGroup {
+                ExpressiveSwitchRow(
+                    index = 0,
+                    count = 1,
+                    title = "我已阅读并同意以上声明",
+                    checked = agreed,
+                    onCheckedChange = onAgreedChange,
+                )
+            }
+            Button(
+                onClick = onContinue,
+                enabled = agreed,
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = ButtonDefaults.MediumContentPadding,
+            ) {
+                Text("同意并继续")
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingLoginStep(
+    studentId: String,
+    onStudentIdChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    passwordVisible: Boolean,
+    onTogglePasswordVisible: () -> Unit,
+    rememberPassword: Boolean,
+    onRememberPasswordChange: (Boolean) -> Unit,
+    cookieMode: Boolean,
+    onCookieModeChange: (Boolean) -> Unit,
+    cookie: String,
+    onCookieChange: (String) -> Unit,
+    loading: Boolean,
+    errorMessage: String?,
+    onDismissError: () -> Unit,
+    onWebLogin: () -> Unit,
+    onSkip: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    val canSubmit = !loading && if (cookieMode) cookie.isNotBlank() else studentId.isNotBlank() && password.isNotBlank()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 520.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "登录账号",
+                style = MaterialTheme.typography.headlineLargeEmphasized,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "使用湘潭大学教务账号，同步课程与教务信息。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ExpressiveConnectedToggleRow(
+                options = listOf("学号密码", "Cookie 登录"),
+                selectedIndex = if (cookieMode) 1 else 0,
+                onSelect = { onCookieModeChange(it == 1) },
+            )
+            if (cookieMode) {
+                OutlinedTextField(
+                    value = cookie,
+                    onValueChange = onCookieChange,
+                    label = { Text("教务 Cookie") },
+                    placeholder = { Text("请输入教务 Cookie") },
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = onTogglePasswordVisible) {
+                            Icon(
+                                if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = "切换显示",
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                )
+            } else {
+                OutlinedTextField(
+                    value = studentId,
+                    onValueChange = onStudentIdChange,
+                    label = { Text("学号") },
+                    placeholder = { Text("请输入学号") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("密码") },
+                    placeholder = { Text("默认密码为 Xtu@身份证后六位") },
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = onTogglePasswordVisible) {
+                            Icon(
+                                if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = "切换显示",
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                )
+                ExpressiveSegmentedGroup {
+                    ExpressiveSwitchRow(
+                        index = 0,
+                        count = 1,
+                        title = "记住密码",
+                        subtitle = "加密保存在本机以便自动续期登录",
+                        checked = rememberPassword,
+                        onCheckedChange = onRememberPasswordChange,
+                    )
+                }
+            }
+            errorMessage?.let {
+                ExpressiveMessageBanner(
+                    message = it,
+                    isError = true,
+                    onDismiss = onDismissError,
+                )
+            }
+            Button(
+                onClick = onSubmit,
+                enabled = canSubmit,
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = ButtonDefaults.MediumContentPadding,
+            ) {
+                if (loading) {
+                    XachetInlineBusyIndicator("正在登录并同步")
+                } else {
+                    Text("登录并继续")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onWebLogin,
+                    enabled = !loading,
+                    shapes = ButtonDefaults.shapes(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("网页登录")
+                }
+                TextButton(
+                    onClick = onSkip,
+                    enabled = !loading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("稍后登录")
                 }
             }
         }
-    })
+    }
 }
 
-@Composable private fun ProvisionStep(title: String, icon: ImageVector, button: String, enabled: Boolean, busy: Boolean,
-    background: Color, onBack: () -> Unit, onNext: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val colors = LocalGlassColors.current
-    BoxWithConstraints(Modifier.fillMaxSize().background(background).safeDrawingPadding().imePadding()) {
-        val compact = maxHeight < 540.dp
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            GuideBack(onBack, enabled = !busy)
-            Column(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth().verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp).padding(top = if (compact) 8.dp else 30.dp, bottom = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(icon, null, Modifier.size(if (compact) 52.dp else 72.dp), tint = colors.accent)
-                Spacer(Modifier.height(if (compact) 14.dp else 24.dp))
-                Text(title, style = IosTypography.title1.copy(fontSize = 32.sp, lineHeight = 44.sp, fontWeight = FontWeight.Normal),
-                    textAlign = TextAlign.Center, color = colors.content)
-                Spacer(Modifier.height(if (compact) 24.dp else 38.dp))
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
+@Composable
+private fun OnboardingPermissionStep(
+    status: Map<String, Any>,
+    activity: Activity?,
+    onRequestNotifications: () -> Unit,
+    onOpenSetting: (String) -> Unit,
+    onPinWidget: () -> Unit,
+    onContinue: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 520.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "权限与服务",
+                style = MaterialTheme.typography.headlineLargeEmphasized,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "开启所需权限，让课前提醒和课程实时状态及时出现。你也可以稍后在设置中调整。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PermissionStatusGroup(
+                status = status,
+                onRequestNotifications = onRequestNotifications,
+                onOpenSetting = onOpenSetting,
+            )
+            Text(
+                text = "第 1、5 节课提前 20 分钟提醒，其他节次提前 10 分钟提醒。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val widgetCount = status["widgetCount"] as? Int ?: 0
+            ExpressiveSegmentedGroup {
+                ExpressiveSegmentedActionRow(
+                    index = 0,
+                    count = 1,
+                    title = "桌面小组件",
+                    subtitle = if (widgetCount > 0) "已添加 · 点击添加更多" else "添加课程到桌面",
+                    value = if (widgetCount > 0) "$widgetCount 个" else null,
+                    leading = { Icon(Icons.Rounded.Widgets, contentDescription = null) },
+                    onClick = onPinWidget,
+                )
             }
-            GuidePrimaryButton(button, enabled, busy, onNext,
-                Modifier.padding(horizontal = 28.dp).widthIn(max = 464.dp).fillMaxWidth())
-            Spacer(Modifier.height(if (compact) 16.dp else 44.dp))
+            Text(
+                text = "也可以长按桌面，在小组件列表选择 Xachet。自启动状态请以系统设置为准。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(
+                onClick = onContinue,
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = ButtonDefaults.MediumContentPadding,
+            ) {
+                Text("继续")
+            }
         }
     }
 }
 
-@Composable private fun ProvisionWelcome(active: Boolean, onStart: () -> Unit,
-    onArrowBounds: (Rect) -> Unit, modifier: Modifier = Modifier) {
-    val intro = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { intro.animateTo(1f, tween(1100, easing = EaseOutCubic)) }
-    val colors = LocalGlassColors.current
-    Box(modifier.fillMaxSize()) {
-        BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
-            val compact = maxHeight < 500.dp
-            Column(Modifier.fillMaxSize().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(Modifier.weight(if (compact) .7f else 1.2f))
-                Text("Xachet", color = Color.White.copy(alpha = .86f),
-                    style = IosTypography.largeTitle.copy(fontSize = 50.sp, lineHeight = 72.sp, fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(vertical = 8.dp).graphicsLayer {
-                        alpha = intro.value; scaleX = .90f + .10f * intro.value; scaleY = scaleX
-                        translationY = 18.dp.toPx() * (1f - intro.value)
-                    })
-                Spacer(Modifier.weight(1f))
-                // Keep the press effect alive during the source fade. Disabling here
-                // removes the interaction modifier before it can animate back.
-                GlasmioIconButton({ if (active) onStart() }, size = 70.dp, style = GlassSurfaceStyle.Navigation,
-                    modifier = Modifier.onGloballyPositioned { onArrowBounds(it.boundsInRoot()) }
-                        .semantics { contentDescription = "开始设置" }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(30.dp), tint = colors.content)
+@Composable
+private fun OnboardingDoneStep(
+    finishing: Boolean,
+    errorMessage: String?,
+    onFinish: () -> Unit,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "CompletionMorph")
+    val morphFraction by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "CompletionShapeMorph",
+    )
+    val shape = rememberMorphShape(
+        from = MaterialShapes.Sunny,
+        to = MaterialShapes.SoftBurst,
+        progress = morphFraction,
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 460.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(120.dp),
+                shape = shape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                    )
                 }
-                Spacer(Modifier.weight(.65f))
+            }
+            Text(
+                text = "一切准备就绪",
+                style = MaterialTheme.typography.headlineLargeEmphasized,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "课程通知与离线课表环境已配置完成",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            errorMessage?.let {
+                ExpressiveMessageBanner(message = it, isError = true)
+            }
+            Button(
+                onClick = onFinish,
+                enabled = !finishing,
+                shapes = ButtonDefaults.shapes(),
+                contentPadding = ButtonDefaults.LargeContentPadding,
+            ) {
+                if (finishing) {
+                    XachetInlineBusyIndicator("正在进入")
+                } else {
+                    Text("开始使用", style = MaterialTheme.typography.titleMediumEmphasized)
+                }
             }
         }
     }
 }
 
-@Composable private fun ProvisionComplete(art: ProvisionSuccessArtwork?, active: Boolean, busy: Boolean,
-    error: String?, onBack: () -> Unit, onComplete: () -> Unit, onButtonBounds: (Rect) -> Unit) {
-    val colors = LocalGlassColors.current
-    val appear = remember { Animatable(0f) }
-    LaunchedEffect(active) { if (active) appear.animateTo(1f, tween(420, easing = EaseOutCubic)) }
-    BoxWithConstraints(Modifier.fillMaxSize().background(if (colors.isDark) Color.Black else Color.White).safeDrawingPadding()) {
-        GuideBack(onBack, !busy)
-        val iconTop = (maxHeight * .37f - 64.dp).coerceAtLeast(64.dp)
-        Column(Modifier.align(Alignment.TopCenter).padding(top = iconTop).widthIn(max = 520.dp)
-            .fillMaxWidth().padding(horizontal = 28.dp).graphicsLayer { alpha = appear.value },
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            ProvisionSuccessMark(art, active)
-            Spacer(Modifier.height(18.dp))
-            Text("一切准备就绪", style = IosTypography.title1.copy(fontSize = 30.sp, lineHeight = 42.sp), color = colors.content)
-            error?.let { Text(it, color = colors.destructive, modifier = Modifier.padding(top = 16.dp)) }
+internal data class PermissionRowItem(
+    val icon: ImageVector,
+    val title: String,
+    val statusText: String,
+    val granted: Boolean,
+    val onClick: () -> Unit,
+)
+
+@Composable
+internal fun PermissionStatusGroup(
+    status: Map<String, Any>,
+    onRequestNotifications: () -> Unit,
+    onOpenSetting: (String) -> Unit,
+) {
+    val live = status["live"] as? Map<*, *>
+    val rows = listOf(
+        PermissionRowItem(
+            icon = Icons.Rounded.Notifications,
+            title = "通知权限",
+            statusText = when {
+                status.isEmpty() -> "正在读取"
+                status["notifications"] == true -> "已开启"
+                else -> "未开启"
+            },
+            granted = status["notifications"] == true,
+            onClick = onRequestNotifications,
+        ),
+        PermissionRowItem(
+            icon = Icons.Rounded.Timer,
+            title = "实时活动",
+            statusText = when {
+                status.isEmpty() -> "正在读取"
+                live?.get("supported") != true -> "使用持续课程通知"
+                live["promoted"] == true -> "已开启"
+                else -> "前往开启"
+            },
+            granted = live?.get("promoted") == true,
+            onClick = { onOpenSetting("live") },
+        ),
+        PermissionRowItem(
+            icon = Icons.Rounded.Alarm,
+            title = "准时提醒",
+            statusText = when {
+                status.isEmpty() -> "正在读取"
+                live?.get("exactAlarms") == true -> "已开启"
+                else -> "允许闹钟和提醒"
+            },
+            granted = live?.get("exactAlarms") == true,
+            onClick = { onOpenSetting("exactAlarms") },
+        ),
+        PermissionRowItem(
+            icon = Icons.Rounded.BatteryChargingFull,
+            title = "后台运行",
+            statusText = when {
+                status.isEmpty() -> "正在读取"
+                status["batteryUnrestricted"] == true -> "已允许"
+                else -> "允许无限制运行"
+            },
+            granted = status["batteryUnrestricted"] == true,
+            onClick = { onOpenSetting("battery") },
+        ),
+        PermissionRowItem(
+            icon = Icons.Rounded.RestartAlt,
+            title = "自启动",
+            statusText = "请在系统设置中确认",
+            granted = false,
+            onClick = { onOpenSetting("autostart") },
+        ),
+    )
+
+    ExpressiveSegmentedGroup {
+        rows.forEachIndexed { index, row ->
+            SegmentedListItem(
+                onClick = row.onClick,
+                shapes = ListItemDefaults.segmentedShapes(index = index, count = rows.size),
+                colors = expressiveSegmentedColors(),
+                leadingContent = {
+                    Icon(
+                        imageVector = row.icon,
+                        contentDescription = null,
+                        tint = if (row.granted) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = row.statusText,
+                        color = if (row.granted) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                },
+                trailingContent = {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = if (row.granted) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        },
+                        contentColor = if (row.granted) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    ) {
+                        Text(
+                            text = if (row.granted) "已就绪" else "去设置",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                },
+                content = {
+                    Text(row.title, style = MaterialTheme.typography.titleSmallEmphasized)
+                },
+            )
         }
-        GuidePrimaryButton("开始使用", !busy, busy, onComplete,
-            Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp).padding(bottom = 44.dp)
-                .widthIn(max = 464.dp).fillMaxWidth().onGloballyPositioned { onButtonBounds(it.boundsInRoot()) })
     }
-}
-
-@Composable private fun GuideBack(onBack: () -> Unit, enabled: Boolean = true, tint: Color = LocalGlassColors.current.content) {
-    Row(Modifier.widthIn(max = 576.dp).fillMaxWidth().height(56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlasmioIconButton(onBack, enabled = enabled, size = 48.dp, style = GlassSurfaceStyle.Navigation) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "上一步", Modifier.size(28.dp), tint = tint)
-        }
-    }
-}
-
-@Composable private fun GuidePrimaryButton(text: String, enabled: Boolean, busy: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    GlasmioButton(onClick, modifier = modifier, enabled = enabled, emphasis = GlassEmphasis.Prominent,
-        style = GlassSurfaceStyle.Navigation, size = GlasmioButtonSize.Large) {
-        if (busy) XachetLoadingIndicator(Modifier.size(24.dp), color = LocalGlassColors.current.content)
-        else Text(text, style = IosTypography.headline)
-    }
-}
-
-@Composable private fun GuideParagraph(text: String) {
-    Text(text, style = IosTypography.subheadline.copy(lineHeight = 22.sp), color = LocalGlassColors.current.secondaryContent)
-}
-
-@Composable private fun GuideCheck(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    val colors = LocalGlassColors.current
-    GlasmioListRow(text, minimumHeight = 52.dp, onClick = { onChange(!checked) },
-        trailing = { GlasmioSwitch(checked = checked, onCheckedChange = onChange) })
-}
-
-@Composable private fun GuideTextAction(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Text(text, style = IosTypography.subheadline,
-        color = LocalGlassColors.current.accent.copy(alpha = if (enabled) 1f else .4f),
-        modifier = Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .heightIn(min = 44.dp).padding(vertical = 12.dp, horizontal = 4.dp))
-}
-
-@Composable private fun GuidePermission(icon: ImageVector, title: String, status: String, granted: Boolean, onClick: () -> Unit) {
-    val colors = LocalGlassColors.current
-    GlasmioListRow(title, subtitle = status, minimumHeight = 72.dp, onClick = onClick,
-        leading = { Icon(icon, null, Modifier.size(26.dp), tint = colors.accent) },
-        trailing = { Icon(if (granted) Icons.Default.Check else Icons.Default.ChevronRight, null,
-            Modifier.size(20.dp), tint = if (granted) colors.accent else colors.secondaryContent) })
-}
-
-@Composable private fun GuideGroup(verticalArrangement: Arrangement.Vertical, content: @Composable ColumnScope.() -> Unit) {
-    GlasmioCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = verticalArrangement, content = content)
-    }
-}
-
-/** The incoming page owns a neutral optical source. The outer morph may still
- * refract the welcome glow, but nested buttons never inherit that cached scene. */
-@Composable private fun GuidePageBackdrop(background: Color, content: @Composable () -> Unit) {
-    // Supply a neutral optical source without drawing a second fullscreen layer:
-    // the permissions page must uncover the completion page while it contracts.
-    val drawSource: DrawScope.() -> Unit = remember(background) { { drawRect(background) } }
-    val backdrop = rememberCanvasBackdrop(drawSource)
-    GlasmioBackdropProvider(backdrop, content = content)
 }

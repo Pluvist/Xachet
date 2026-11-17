@@ -28,7 +28,11 @@ import kotlinx.coroutines.withContext
     return produceState<Map<String,Any>>(emptyMap(),context,lifecycle,enabled) {
         if(enabled) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while(true) {
-                value=withContext(Dispatchers.IO){BackgroundSetupSettings.status(context)}
+                value=withContext(Dispatchers.IO){
+                    try { BackgroundSetupSettings.status(context) }
+                    catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                    catch (_: RuntimeException) { emptyMap() }
+                }
                 delay(1000)
             }
         }
@@ -73,21 +77,29 @@ internal object BackgroundSetupSettings {
                     activity.startActivity(intent)
                     return true
                 }
-            } catch (_: android.content.ActivityNotFoundException) { }
-              catch (_: SecurityException) { }
+            } catch (_: RuntimeException) { }
         }
         return false
     }
     /** A denied-again runtime permission needs the system settings screen instead of a no-op dialog. */
     fun requestNotifications(activity:Activity,launch:()->Unit) {
         val prefs=activity.getSharedPreferences("course_widget",Context.MODE_PRIVATE)
-        val allowed=activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED
-        if(allowed || (prefs.getBoolean("livePermissionAsked",false) &&
-                !activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS))) {
+        val allowed=runCatching {
+            activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+        val askedBefore=prefs.getBoolean("livePermissionAsked",false)
+        val shouldShowRationale=runCatching {
+            activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)
+        }.getOrDefault(false)
+        if(allowed || (askedBefore && !shouldShowRationale)) {
             open(activity,"notifications")
         } else {
             prefs.edit().putBoolean("livePermissionAsked",true).apply()
-            launch()
+            try {
+                launch()
+            } catch (_: RuntimeException) {
+                open(activity, "notifications")
+            }
         }
     }
     /** Permission callbacks must restore the cached schedule without waiting for the next network sync. */
@@ -97,18 +109,36 @@ internal object BackgroundSetupSettings {
         Unit
     }
     fun status(context: Context): Map<String, Any> {
-        val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val manager = AppWidgetManager.getInstance(context)
+        val power = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val notifications = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        val manager = runCatching { AppWidgetManager.getInstance(context) }.getOrNull()
+        val postGranted = runCatching {
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+        val notifyEnabled = runCatching { notifications?.areNotificationsEnabled() == true }.getOrDefault(false)
+        val batteryUnrestricted = Build.VERSION.SDK_INT < 23 ||
+            runCatching { power?.isIgnoringBatteryOptimizations(context.packageName) == true }.getOrDefault(false)
+        val autostartAvailable = runCatching {
+            candidates(context, "autostart").dropLast(1).any { it.resolveActivity(context.packageManager) != null }
+        }.getOrDefault(false)
+        val liveStatus = runCatching { CourseLiveActivity.status(context) }.getOrDefault(emptyMap())
+        val reminderStatus = runCatching { CourseReminder.status(context) }.getOrDefault(emptyMap())
+        val widgetCount = if (manager == null) {
+            0
+        } else {
+            runCatching {
+                manager.getAppWidgetIds(ComponentName(context, CourseWidgetProvider::class.java)).size +
+                    manager.getAppWidgetIds(ComponentName(context, CourseWidgetWideProvider::class.java)).size
+            }.getOrDefault(0)
+        }
         return mapOf(
-            "notifications" to (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED &&
-                (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).areNotificationsEnabled()),
-            "batteryUnrestricted" to (Build.VERSION.SDK_INT < 23 || power.isIgnoringBatteryOptimizations(context.packageName)),
-            "autostartAvailable" to candidates(context, "autostart").dropLast(1)
-                .any { it.resolveActivity(context.packageManager) != null },
-            "live" to CourseLiveActivity.status(context),
-            "reminders" to CourseReminder.status(context),
+            "notifications" to (postGranted && notifyEnabled),
+            "batteryUnrestricted" to batteryUnrestricted,
+            "autostartAvailable" to autostartAvailable,
+            "live" to liveStatus,
+            "reminders" to reminderStatus,
             // There is no public API to read a vendor's auto-start permission.
-            "widgetCount" to (manager.getAppWidgetIds(ComponentName(context, CourseWidgetProvider::class.java)).size +
-                manager.getAppWidgetIds(ComponentName(context, CourseWidgetWideProvider::class.java)).size))
+            "widgetCount" to widgetCount,
+        )
     }
 }

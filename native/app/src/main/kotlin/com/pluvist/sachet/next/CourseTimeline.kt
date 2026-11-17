@@ -11,6 +11,17 @@ enum class LiveCoursePhase { NONE, WAITING, IN_CLASS, COMPLETED }
 data class LiveCourseState(val phase: LiveCoursePhase, val today: List<LiveLesson>,
     val current: LiveLesson?, val next: LiveLesson?, val midnight: Long, val tomorrow: Long)
 
+data class CourseLivePresentation(
+    val title: String,
+    val content: String,
+    val shortText: String,
+    val progressMax: Int = 0,
+    val progressCurrent: Int = 0,
+    val hasProgress: Boolean = false,
+    val requestPromoted: Boolean = false,
+    val ongoing: Boolean = true,
+)
+
 /** Uses the same resolved section timestamps as the native homepage and widgets. */
 object CourseTimeline {
     fun lessons(data: JSONObject): List<LiveLesson> {
@@ -49,6 +60,8 @@ object CourseTimeline {
         return LiveCourseState(phase, today, current, next, midnight, tomorrow)
     }
 
+    private const val FIVE_MINUTES_MILLIS = 5 * 60_000L
+
     fun promote(state: LiveCourseState, now: Long): Boolean =
         state.current != null || (state.next != null &&
             (state.today.any { it.start <= now } || state.next.start - now <= 30*60_000L))
@@ -62,7 +75,63 @@ object CourseTimeline {
         val boundary = state.today.flatMap { listOf(it.start, it.end) }.filter { it > now }.minOrNull()
         val promoteAt = if (promote(state, now)) null else
             state.next?.start?.minus(30*60_000L)?.takeIf { it > now }
-        return listOfNotNull(boundary, promoteAt, state.tomorrow).minOrNull()
+        val fiveMinAt = if (state.phase == LiveCoursePhase.WAITING) {
+            state.next?.start?.minus(FIVE_MINUTES_MILLIS)?.takeIf { it > now }
+        } else {
+            null
+        }
+        return listOfNotNull(boundary, promoteAt, fiveMinAt, state.tomorrow).minOrNull()
+    }
+
+    fun present(
+        state: LiveCourseState,
+        now: Long,
+        focusLiveActive: Boolean = false,
+    ): CourseLivePresentation {
+        val canPromote = !focusLiveActive && promote(state, now)
+        val current = state.current
+        if (state.phase == LiveCoursePhase.IN_CLASS && current != null) {
+            val remainingText = countdown(current.end - now)
+            val durationSec = ((current.end - current.start) / 1000L).toInt().coerceAtLeast(1)
+            val elapsedSec = ((now - current.start) / 1000L).toInt().coerceIn(0, durationSec)
+            val nextContent = state.next?.let { next ->
+                val placeText = next.place.ifBlank { "地点待确认" }
+                "下一节：${next.title} · $placeText"
+            } ?: "今天没有下一节课啦"
+            return CourseLivePresentation(
+                title = "${current.title} · $remainingText",
+                content = nextContent,
+                shortText = remainingText,
+                progressMax = durationSec,
+                progressCurrent = elapsedSec,
+                hasProgress = true,
+                requestPromoted = canPromote,
+                ongoing = true,
+            )
+        }
+        val next = state.next
+        if (state.phase == LiveCoursePhase.WAITING && next != null) {
+            val remainingMs = (next.start - now).coerceAtLeast(0L)
+            val remainingText = countdown(remainingMs)
+            val placeText = next.place.ifBlank { "地点待确认" }
+            val withinFiveMin = remainingMs <= FIVE_MINUTES_MILLIS
+            return CourseLivePresentation(
+                title = "${next.title} · $remainingText",
+                content = "上课地点：$placeText",
+                shortText = if (withinFiveMin) remainingText else placeText,
+                hasProgress = false,
+                requestPromoted = canPromote,
+                ongoing = true,
+            )
+        }
+        return CourseLivePresentation(
+            title = "课程已完成",
+            content = "今天的课程都已结束",
+            shortText = "",
+            hasProgress = false,
+            requestPromoted = false,
+            ongoing = false,
+        )
     }
 
     /** Digits only; ceil prevents showing zero while a positive fraction remains. */

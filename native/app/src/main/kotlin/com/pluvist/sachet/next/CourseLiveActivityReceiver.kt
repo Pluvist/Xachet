@@ -14,6 +14,9 @@ class CourseLiveActivityReceiver : BroadcastReceiver() {
                 LegacyReminderCleanup.run(context)
                 when (intent.action) {
                     CourseLiveActivity.DISMISS -> CourseLiveActivity.dismissToday(context, intent.getStringExtra("day"))
+                    FocusLiveActivity.ACTION_STOP,
+                    FocusLiveActivity.ACTION_SKIP,
+                    FocusLiveActivity.ACTION_PAUSE -> FocusLiveActivity.handleAction(context, intent.action!!)
                     in rebuildActions -> {
                         try {
                             // Only local course/settings files are read. Rebuild wall-clock

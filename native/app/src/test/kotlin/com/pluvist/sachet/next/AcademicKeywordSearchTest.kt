@@ -1,6 +1,5 @@
 package com.pluvist.sachet.next
 
-import androidx.compose.ui.text.input.TextFieldValue
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -41,36 +40,5 @@ class AcademicKeywordSearchTest {
         }
         assertTrue(AcademicKeywordSearch.matchesPrepared(texts[0],AcademicKeywordSearch.terms(queries[0])))
         assertFalse(AcademicKeywordSearch.matchesPrepared(texts[2],AcademicKeywordSearch.terms("数学")))
-    }
-    @Test fun retiredPageCannotDetachTheNewSearchOwner() {
-        val controller=AcademicSearchController()
-        val previous=AcademicSearchSession("cultivation","搜索课程")
-        val current=AcademicSearchSession("textbooks","搜索教材")
-        controller.attach(previous);controller.attach(current);controller.detach(previous)
-        assertSame(current,controller.session)
-        controller.detach(current);assertNull(controller.session)
-    }
-    @Test fun cancelSearchClearsFilterAndCollapseStateTogether() {
-        val session=AcademicSearchSession("cultivation","搜索课程")
-        session.query=TextFieldValue("math");session.expanded=true;session.close()
-        assertEquals("",session.query.text);assertFalse(session.expanded)
-    }
-    @Test fun submitKeepsTheKeywordForTheResultPageBeforeClearingTheEditor() {
-        val session=AcademicSearchSession("grades","搜索成绩")
-        var submitted:String?=null
-        session.onSubmit={submitted=it}
-        session.query=TextFieldValue("  高等数学  ");session.expanded=true
-        session.submit()
-        assertEquals("高等数学",submitted)
-        assertEquals("",session.query.text)
-        assertFalse(session.expanded)
-    }
-    @Test fun expandedSearchOnAnotherRouteCannotDimOrInterceptTheCurrentPage() {
-        val controller=AcademicSearchController()
-        val session=AcademicSearchSession("cultivation","搜索课程")
-        controller.attach(session);session.expanded=true
-        assertSame(session,controller.forRoute("cultivation"))
-        assertNull(controller.forRoute("textbooks"));assertNull(controller.forRoute(null))
-        controller.detach(session);assertNull(controller.forRoute("cultivation"))
     }
 }

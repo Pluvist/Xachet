@@ -46,4 +46,44 @@ class CourseDataTest {
         val courses = CourseParser.fromServer("""{"kbList":[{"kcmc":"实验","cdmc":"信息科技大楼","xm":"老师","xqj":"1","jc":"2-2节","zcd":"1-2周"}]}""")
         assertEquals(2,courses.single().first); assertEquals(2,courses.single().last)
     }
+
+    @Test fun customCoursePersistsAndDrivesHomeStatusTimelineAndReminders() {
+        val custom = Course(
+            id = "custom-test-1",
+            title = "自定义实验课",
+            place = "逸夫楼305",
+            teacher = "王老师",
+            weekday = 1,
+            first = 3,
+            last = 4,
+            weeks = setOf(1, 3),
+        )
+        assertTrue(custom.isCustom)
+        assertTrue(custom.staggered)
+        assertEquals("逸夫楼", extractBuildingName(custom.place))
+        assertTrue(resolveAvailableBuildings(listOf(custom, Course("2", "普通课", "明德楼101", "", 2, 1, 2, setOf(1)))).contains("明德楼"))
+
+        val roundTrip = CustomCourseCodec.parse(CustomCourseCodec.serialize(listOf(custom))).single()
+        assertEquals(custom, roundTrip)
+
+        // Feeds Home Current & Next Course cards identically to synced courses
+        val beforeClass = CourseClock.status(listOf(roundTrip), semester, now("10:00:00"), zone)
+        assertNull(beforeClass.current)
+        assertEquals("自定义实验课", beforeClass.next?.course?.title)
+        assertEquals(now("10:30:00"), beforeClass.next?.start)
+
+        val duringClass = CourseClock.status(listOf(roundTrip), semester, now("10:45:00"), zone)
+        assertEquals("自定义实验课", duringClass.current?.course?.title)
+        assertEquals("逸夫楼305", duringClass.current?.course?.place)
+
+        // Feeds Live Activity & Reminders pipeline via remainingTerm -> LiveLesson -> CourseReminderPlan
+        val remaining = CourseClock.remainingTerm(listOf(roundTrip), semester, semester, zone)
+        val liveLessons = remaining.map {
+            LiveLesson(it.course.title, it.course.place, it.start.toEpochMilli(), it.end.toEpochMilli(), it.section, it.course.id)
+        }
+        val state = CourseTimeline.resolve(now("10:45:00").toEpochMilli(), liveLessons, java.util.TimeZone.getTimeZone(zone))
+        assertEquals(LiveCoursePhase.IN_CLASS, state.phase)
+        assertEquals("自定义实验课", state.current?.title)
+        assertEquals(4, CourseReminderPlan.events(liveLessons).size)
+    }
 }

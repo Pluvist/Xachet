@@ -1,266 +1,152 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+
 package com.pluvist.sachet.next
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.AppBarWithSearch
+import androidx.compose.material3.ExpandedFullScreenContainedSearchBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SearchBarScrollBehavior
+import androidx.compose.material3.SearchBarState
+import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.rememberContainedSearchBarState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.SoftwareKeyboardController
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.offset
-import io.github.neoruaa.glasmio.core.*
-import io.github.neoruaa.glasmio.glass.*
-import io.github.neoruaa.glasmio.icons.*
-import io.github.neoruaa.glasmio.ui.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.text.Normalizer
 import java.util.Locale
-import kotlin.math.roundToInt
 
-internal class AcademicSearchSession(val route:String,val placeholder:String) {
-    var query by mutableStateOf(TextFieldValue())
-    var expanded by mutableStateOf(false)
-    var inputCoordinates:LayoutCoordinates?=null
-    var onSubmit:((String)->Unit)?=null
-    fun close(){expanded=false;query=TextFieldValue()}
-    fun submit(){
-        val keyword=query.text.trim()
-        close()
-        onSubmit?.invoke(keyword)
+/** Multi-term NFKC keyword matcher shared by academic query pages and unit tests. */
+object AcademicKeywordSearch {
+    private val whitespace = Regex("\\s+")
+    private fun normalize(value: String): String =
+        Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(Locale.ROOT)
+
+    internal fun terms(query: String): List<String> =
+        normalize(query).trim().split(whitespace).filter { it.isNotEmpty() }
+
+    /** Build once per response, rather than normalizing every record on every keystroke. */
+    internal fun searchableText(record: AcademicRecord): String = normalize(buildString {
+        append(record.title)
+        record.fields.forEach {
+            append('\n')
+            append(it.second)
+        }
+    })
+
+    internal fun matchesPrepared(text: String, terms: List<String>): Boolean =
+        terms.all { text.contains(it) }
+
+    fun matches(record: AcademicRecord, query: String): Boolean {
+        val terms = terms(query)
+        return terms.isEmpty() || matchesPrepared(searchableText(record), terms)
     }
 }
-
-internal class AcademicSearchController {
-    var session by mutableStateOf<AcademicSearchSession?>(null)
-        private set
-    var rootCoordinates:LayoutCoordinates?=null
-    fun forRoute(route:String?)=session?.takeIf{it.route==route}
-    fun attach(value:AcademicSearchSession){session=value}
-    fun detach(value:AcademicSearchSession){if(session===value)session=null}
-}
-internal val LocalAcademicSearch=staticCompositionLocalOf<AcademicSearchController?>{null}
-
-private val SearchMotion=spring<Float>(dampingRatio=.77f,stiffness=390f,visibilityThreshold=.001f)
 
 /**
- * Search owns its return to the bottom rather than following the IME's final
- * inset removal. The same spring drives width and keyboard lift, so closing
- * starts both motions together and reopening preserves their current velocity.
- * Other editors continue to use the system's animated IME inset directly.
+ * Material 3 Expressive search bar inside a Top App Bar paired with an expandable
+ * [ExpandedFullScreenContainedSearchBar] for filtering or searching academic records & PDFs.
  */
-@Composable internal fun Modifier.academicAccessoryImeLift(controller:AcademicSearchController,route:String?):Modifier {
-    val session=controller.forRoute(route)
-    val density=LocalDensity.current
-    val keyboardInsets=WindowInsets.ime.exclude(WindowInsets.navigationBars)
-    // Normalize to dp so the vertical and horizontal springs share their timing
-    // and settling threshold across display densities.
-    val lift=animateFloatAsState(
-        targetValue=if(session?.expanded==true)keyboardInsets.getBottom(density)/density.density else 0f,
-        animationSpec=SearchMotion,label="Academic search keyboard lift",
-    )
-    return offset {
-        val pixels=if(session!=null)lift.value*density.density else keyboardInsets.getBottom(density).toFloat()
-        IntOffset(0,-pixels.coerceAtLeast(0f).roundToInt())
-    }
-}
-
-private fun AcademicSearchSession.dismiss(focus:FocusManager,keyboard:SoftwareKeyboardController?) {
-    close();focus.clearFocus(force=true);keyboard?.hide()
-}
-
-/** Dim only the page plane; the search surface is drawn above this scrim. */
-@Composable internal fun AcademicSearchScrim(controller:AcademicSearchController,route:String?) {
-    val session=controller.forRoute(route)?:return
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    val opacity=if(LocalGlassColors.current.isDark).26f else .18f
-    key(session) {
-        val progress=animateFloatAsState(if(session.expanded)1f else 0f,
-            spring(dampingRatio=.85f,stiffness=450f,visibilityThreshold=.001f),label="Academic search dim")
-        if(session.expanded||progress.value>.001f)Box(Modifier.fillMaxSize()
-            .drawBehind{drawRect(Color.Black.copy(alpha=opacity*progress.value.coerceIn(0f,1f)))}
-            .semantics{contentDescription="退出搜索"}
-            .clickable(interactionSource=remember{MutableInteractionSource()},indication=null){session.dismiss(focus,keyboard)})
-    }
-}
-
-/** Consume outside taps before underlying page/footer controls receive them. */
-@Composable internal fun Modifier.academicSearchDismissGesture(controller:AcademicSearchController,route:String?):Modifier {
-    val session=controller.forRoute(route)
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    val tracked=this.onGloballyPositioned{controller.rootCoordinates=it}
-    if(session?.expanded!=true)return tracked
-    return tracked.pointerInput(session) {
-        awaitEachGesture {
-            val down=awaitFirstDown(requireUnconsumed=false,pass=PointerEventPass.Initial)
-            val root=controller.rootCoordinates
-            val input=session.inputCoordinates
-            val bounds=if(root?.isAttached==true&&input?.isAttached==true)
-                root.localBoundingBoxOf(input,clipBounds=false)else Rect.Zero
-            val outside=!bounds.contains(down.position)
-            if(outside)down.consume()
-            var moved=false
-            do {
-                val event=awaitPointerEvent(PointerEventPass.Initial)
-                if(event.changes.any{(it.position-down.position).getDistance()>viewConfiguration.touchSlop})moved=true
-                if(outside)event.changes.forEach{it.consume()}
-            }while(event.changes.any{it.pressed})
-            if(outside&&!moved)session.dismiss(focus,keyboard)
-        }
-    }
-}
-
-object AcademicKeywordSearch {
-    private val whitespace=Regex("\\s+")
-    private fun normalize(value:String)=Normalizer.normalize(value,Normalizer.Form.NFKC).lowercase(Locale.ROOT)
-    internal fun terms(query:String):List<String> = normalize(query).trim().split(whitespace).filter{it.isNotEmpty()}
-    /** Build once per response, rather than normalizing every record on every keystroke. */
-    internal fun searchableText(record:AcademicRecord):String = normalize(buildString {
-        append(record.title)
-        record.fields.forEach{append('\n');append(it.second)}
-    })
-    internal fun matchesPrepared(text:String,terms:List<String>):Boolean = terms.all{text.contains(it)}
-    fun matches(record:AcademicRecord,query:String):Boolean {
-        val terms=terms(query)
-        return terms.isEmpty()||matchesPrepared(searchableText(record),terms)
-    }
-}
-
-/** One owner for the accessory and search geometry; interrupted springs keep their velocity. */
-@Composable internal fun AcademicAccessoryRow(
-    progress:State<Float>,docking:State<Float>,controller:AcademicSearchController,route:String?,
-    departure:State<Float>,searchEnabled:State<Boolean>,
-    content:@Composable ()->Unit,
+@Composable
+internal fun ExpressiveAcademicSearchAppBar(
+    textFieldState: TextFieldState,
+    placeholder: String,
+    onBack: () -> Unit,
+    onSearchSubmit: (String) -> Unit = {},
+    searchBarState: SearchBarState = rememberContainedSearchBarState(),
+    scrollBehavior: SearchBarScrollBehavior? = null,
+    actions: @Composable (RowScope.() -> Unit)? = null,
+    expandedContent: @Composable ColumnScope.(collapse: () -> Unit) -> Unit,
 ) {
-    val canSearch=searchEnabled.value
-    val current=controller.forRoute(route)
-    var retained by remember{mutableStateOf<AcademicSearchSession?>(null)}
-    SideEffect{if(current!=null)retained=current}
-    val session=current?:retained
-    val presence=animateFloatAsState(if(current!=null)1f else 0f,
-        spring(dampingRatio=.73f,stiffness=410f,visibilityThreshold=.001f),label="Academic search entrance")
-    val expansion=animateFloatAsState(if(current?.expanded==true)1f else 0f,
-        SearchMotion,label="Academic search expansion")
-    val courseAlpha=remember{derivedStateOf{1f-expansion.value.coerceIn(0f,1f)}}
-    val searchAlpha=remember(presence,departure){derivedStateOf{
-        (presence.value*(1f-departure.value.coerceIn(0f,1f))).coerceIn(0f,1f)
-    }}
-    Layout(content={
-        GlassFlightGuard(courseAlpha,content=content)
-        GlassFlightGuard(searchAlpha,modifier=if(current!=null&&canSearch)Modifier else Modifier.clearAndSetSemantics{}) {
-            if(session!=null)key(session){AcademicSearchInput(session,current!=null&&canSearch,expansion)}else Box(Modifier.fillMaxSize())
-        }
-    },modifier=Modifier.fillMaxSize()) { measurables,constraints->
-        val width=constraints.maxWidth
-        val height=48.dp.roundToPx() // 24dp radius, identical to the course capsule.
-        val hostHeight=118.dp.roundToPx()
-        val inset=(69.dp.toPx()*progress.value.coerceIn(0f,1f)).roundToInt().coerceAtMost((width-1)/2)
-        val available=(width-inset*2).coerceAtLeast(1)
-        val reserved=(60.dp.toPx()*presence.value.coerceIn(0f,1.04f)).roundToInt()
-        val courseWidth=(available-reserved).coerceAtLeast(1)
-        val searchWidth=(height+(width-height)*expansion.value.coerceIn(0f,1.035f)).roundToInt().coerceAtLeast(height)
-        val course=measurables[0].measure(Constraints.fixed(courseWidth,height))
-        val search=measurables[1].measure(Constraints.fixed(searchWidth,height))
-        layout(width,hostHeight){
-            val d=docking.value.coerceIn(0f,1f)
-            val y=(63.dp.toPx()*progress.value.coerceIn(0f,1f)*(1f-d)+(hostHeight-height)*d).roundToInt()
-            val courseX=inset-((width+68.dp.toPx())*expansion.value.coerceIn(0f,1.04f)).roundToInt()
-            if(courseAlpha.value>.001f)course.placeRelative(courseX,y)
-            if(current!=null || presence.value>.001f){
-                val enterX=68.dp.toPx()*(1f-presence.value)
-                val exitX=(searchWidth+68.dp.toPx())*departure.value.coerceIn(0f,1f)
-                search.placeRelative((width-searchWidth+enterX+exitX).roundToInt(),hostHeight-height)
-            }
-        }
+    val scope = rememberCoroutineScope()
+    val collapse: () -> Unit = {
+        scope.launch { searchBarState.animateToCollapsed() }
     }
-}
-
-/** Fade the completed glass with filter support outside the control's touch rectangle. */
-@Composable private fun GlassFlightGuard(alpha:State<Float>,modifier:Modifier=Modifier,content:@Composable ()->Unit) {
-    Layout(content={
-        Layout(content=content,modifier=Modifier.graphicsLayer{this.alpha=alpha.value.coerceIn(0f,1f);clip=false}) { nodes,c->
-            val x=24.dp.roundToPx();val y=48.dp.roundToPx()
-            val node=nodes.single().measure(c.offset(-2*x,-2*y))
-            layout(node.width+2*x,node.height+2*y){node.placeRelative(x,y)}
-        }
-    },modifier=modifier){nodes,c->
-        val x=24.dp.roundToPx();val y=48.dp.roundToPx()
-        val node=nodes.single().measure(c.offset(2*x,2*y))
-        layout(node.width-2*x,node.height-2*y){node.placeRelative(-x,-y)}
-    }
-}
-
-@Composable private fun AcademicSearchInput(session:AcademicSearchSession,visible:Boolean,expansion:State<Float>) {
-    val colors=LocalGlassColors.current
-    val requester=remember{FocusRequester()}
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    fun close(){session.dismiss(focus,keyboard)}
-    fun submit(){focus.clearFocus(force=true);keyboard?.hide();session.submit()}
-    LaunchedEffect(session.expanded,visible){
-        if(session.expanded&&visible){snapshotFlow{expansion.value}.first{it>=.96f};requester.requestFocus()}
-        else {
-            focus.clearFocus(force=true);keyboard?.hide()
-            // Let the removed editor finish its input-session teardown before
-            // repeating hide. Reopening cancels this effect, so a late hide can
-            // never dismiss the next search's keyboard.
-            if(visible){withFrameNanos{};if(!session.expanded)keyboard?.hide()}
-        }
-    }
-    BackHandler(visible&&session.expanded){close()}
-    GlassSurface(Modifier.fillMaxSize().onGloballyPositioned{session.inputCoordinates=it},shape=com.kyant.shapes.Capsule(),style=GlassSurfaceStyle.Navigation,
-        onClick=if(visible&&!session.expanded){{session.expanded=true}}else null) {
-        Row(Modifier.fillMaxSize().clip(com.kyant.shapes.Capsule()).padding(horizontal=13.dp),verticalAlignment=Alignment.CenterVertically) {
-            SfIcon("magnifyingglass",if(session.expanded)null else session.placeholder,size=22.dp,tint=colors.content,modifier=Modifier.size(22.dp))
-            if(session.expanded)Row(Modifier.weight(1f).graphicsLayer{alpha=expansion.value.coerceIn(0f,1f)}
-                .then(if(session.expanded&&visible)Modifier else Modifier.clearAndSetSemantics{}),verticalAlignment=Alignment.CenterVertically) {
-                Spacer(Modifier.width(8.dp))
-                GlasmioEditableTextField(session.query,{session.query=it},enabled=visible&&session.expanded,
-                    modifier=Modifier.weight(1f).focusRequester(requester),singleLine=true,
-                    textStyle=IosTypography.body.copy(color=colors.content),cursorBrush=SolidColor(colors.accent),
-                    keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={submit()}),
-                    decorationBox={inner->Box(contentAlignment=Alignment.CenterStart){if(session.query.text.isEmpty())Text(session.placeholder,style=IosTypography.body,color=colors.tertiaryContent);inner()}})
-                GlasmioIconButton(onClick={submit()},enabled=visible&&session.expanded,size=32.dp){
-                    SfIcon("magnifyingglass","查看搜索结果",size=18.dp,tint=colors.content)
+    val inputField: @Composable () -> Unit = {
+        SearchBarDefaults.InputField(
+            textFieldState = textFieldState,
+            searchBarState = searchBarState,
+            onSearch = { keyword ->
+                onSearchSubmit(keyword.trim())
+                collapse()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                )
+            },
+            leadingIcon = {
+                if (searchBarState.currentValue == SearchBarValue.Expanded) {
+                    IconButton(onClick = collapse) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "收起搜索",
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                    )
                 }
-                GlasmioIconButton(onClick={close()},enabled=visible&&session.expanded,size=32.dp){
-                    SfIcon("xmark","收起搜索",size=18.dp,tint=colors.content)
+            },
+            trailingIcon = {
+                if (textFieldState.text.isNotEmpty()) {
+                    IconButton(
+                        onClick = {
+                            textFieldState.clearText()
+                            onSearchSubmit("")
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "清空",
+                        )
+                    }
                 }
-            }
+            },
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        AppBarWithSearch(
+            state = searchBarState,
+            inputField = inputField,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "返回",
+                    )
+                }
+            },
+            actions = actions,
+            scrollBehavior = scrollBehavior,
+        )
+        ExpandedFullScreenContainedSearchBar(
+            state = searchBarState,
+            inputField = inputField,
+        ) {
+            expandedContent(collapse)
         }
     }
 }

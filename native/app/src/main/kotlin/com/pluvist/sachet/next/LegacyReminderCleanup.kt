@@ -19,8 +19,8 @@ internal object LegacyReminderCleanup {
         val cache = context.getSharedPreferences("scheduled_notifications", Context.MODE_PRIVATE)
         val entries = try { JSONArray(cache.getString("scheduled_notifications", "[]")) }
             catch (_: Exception) { JSONArray() }
-        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val notifications = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        val notifications = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         val intent = Intent().setClassName(context.packageName,
             "com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver")
         for (i in 0 until entries.length()) {
@@ -30,19 +30,21 @@ internal object LegacyReminderCleanup {
             val pending = PendingIntent.getBroadcast(context, id, intent,
                 PendingIntent.FLAG_NO_CREATE or
                     if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
-            if (pending != null) { alarm.cancel(pending); pending.cancel() }
-            if (Build.VERSION.SDK_INT < 26 && id != CourseLiveActivity.ID) notifications.cancel(id)
+            if (pending != null) { runCatching { alarm?.cancel(pending) }; runCatching { pending.cancel() } }
+            if (Build.VERSION.SDK_INT < 26 && id != CourseLiveActivity.ID) runCatching { notifications?.cancel(id) }
         }
-        if (Build.VERSION.SDK_INT >= 23) {
-            for (notification in notifications.activeNotifications) {
-                if (Build.VERSION.SDK_INT >= 26 && notification.notification.channelId in
-                    setOf("course_reminder", "notification_test"))
-                    notifications.cancel(notification.tag, notification.id)
+        if (Build.VERSION.SDK_INT >= 23 && notifications != null) {
+            runCatching {
+                for (notification in notifications.activeNotifications) {
+                    if (Build.VERSION.SDK_INT >= 26 && notification.notification.channelId in
+                        setOf("course_reminder", "notification_test"))
+                        notifications.cancel(notification.tag, notification.id)
+                }
             }
         }
-        if (Build.VERSION.SDK_INT >= 26) {
-            notifications.deleteNotificationChannel("course_reminder")
-            notifications.deleteNotificationChannel("notification_test")
+        if (Build.VERSION.SDK_INT >= 26 && notifications != null) {
+            runCatching { notifications.deleteNotificationChannel("course_reminder") }
+            runCatching { notifications.deleteNotificationChannel("notification_test") }
         }
         cache.edit().clear().commit()
         context.getSharedPreferences("notification_plugin_cache", Context.MODE_PRIVATE).edit().clear().commit()

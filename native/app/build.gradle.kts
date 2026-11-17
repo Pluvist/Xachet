@@ -17,8 +17,8 @@ android {
         applicationId = "com.pluvist.xachet"
         minSdk = 33
         targetSdk = 37
-        versionCode = 57
-        versionName = "0.19.81"
+        versionCode = 58
+        versionName = "0.19.82"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -71,10 +71,14 @@ val prepareLegalAssets=tasks.register<Copy>("prepareLegalAssets") {
 }
 tasks.named("preBuild").configure{dependsOn(prepareLegalAssets)}
 dependencies {
-    implementation("io.github.kyant0:shapes:1.2.1")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.material3:material3:1.5.0-rc01")
+    implementation("androidx.compose.material3:material3-window-size-class:1.5.0-rc01")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("io.github.neoruaa.glasmio:glasmio-scaffold:0.1.0")
-    implementation("io.github.neoruaa.glasmio:glasmio-preference:0.1.0")
+    implementation("androidx.graphics:graphics-shapes:1.1.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
@@ -84,6 +88,10 @@ dependencies {
     implementation("com.google.errorprone:error_prone_annotations:2.36.0")
     implementation("com.google.code.findbugs:jsr305:3.0.2")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    testImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    testImplementation("androidx.compose.ui:ui")
+    testImplementation("androidx.compose.animation:animation-core")
+    testImplementation("androidx.compose.material3:material3:1.5.0-rc01")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")
 }

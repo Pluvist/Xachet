@@ -1,5 +1,6 @@
 package com.pluvist.sachet.next
 import android.app.Application
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
@@ -7,9 +8,11 @@ import kotlinx.coroutines.flow.*
 
 private val coursePublicationSettingKeys=setOf("semesterStartDate","themeMode","isEnableCourseLiveActivity","isEnableCourseReminders")
 
+@Immutable
 data class AppData(val courses:List<Course> = emptyList(),val account:Account=Account(),val loading:Boolean=true,val message:String?=null,val settingsSnapshot:String="{}",val appearanceSnapshot:String="{}",val hasSchedule:Boolean=false,val colors:Map<String,String> = emptyMap(),val reloadRevision:Int=0,val reloadFromClick:Boolean=false,val initialized:Boolean=false)
 class SachetViewModel(app:Application):AndroidViewModel(app) {
     val repository=AcademicRepository(app)
+    internal val focus=FocusTimerController(app,viewModelScope)
     private val mutable=MutableStateFlow(AppData())
     val state=mutable.asStateFlow()
     private val firstContentFrame=CompletableDeferred<Unit>()
@@ -122,6 +125,16 @@ class SachetViewModel(app:Application):AndroidViewModel(app) {
     fun setRoutine(course:Course,routine:String)=launch {
         val courses=repository.setRoutine(course,routine)
         mutable.update{it.copy(courses=courses,settingsSnapshot=repository.settings().toString())}
+    }
+    fun saveCustomCourse(course:Course,onDone:()->Unit={})=launch {
+        val courses=repository.addCustomCourse(course)
+        mutable.update{it.copy(courses=courses,hasSchedule=repository.hasSchedule(),reloadRevision=it.reloadRevision+1)}
+        onDone()
+    }
+    fun deleteCustomCourse(courseId:String,onDone:()->Unit={})=launch {
+        val courses=repository.deleteCustomCourse(courseId)
+        mutable.update{it.copy(courses=courses,hasSchedule=repository.hasSchedule(),reloadRevision=it.reloadRevision+1)}
+        onDone()
     }
     fun setCardHeight(height:Float)=launch { saveAppearance(repository.appearance().put("cardHeight",height.toDouble())) }
     fun importColors(body:String)=launch { val colors=repository.importColors(body);mutable.update{it.copy(colors=colors,reloadRevision=it.reloadRevision+1)} }

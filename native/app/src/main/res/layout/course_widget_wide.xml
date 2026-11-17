@@ -1,36 +1,220 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
-    android:paddingTop="6dp" android:paddingBottom="6dp">
-    <FrameLayout android:id="@+id/widget_surface" android:layout_width="match_parent" android:layout_height="match_parent"
-        android:background="@drawable/course_widget_surface" android:clipToOutline="true">
-        <ImageView android:id="@+id/widget_glow" android:layout_width="match_parent" android:layout_height="match_parent"
-            android:scaleType="fitXY" android:importantForAccessibility="no" />
-<LinearLayout
-    android:id="@+id/widget_content" android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="20dp">
-    <LinearLayout android:id="@+id/widget_wide_header" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
-        <TextView android:id="@+id/widget_date" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="今天 / 周四" android:textSize="10sp" android:textColor="#999999" android:maxLines="1" android:ellipsize="end" />
-        <TextView android:id="@+id/widget_week" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="第5周" android:textSize="10sp" android:textColor="#999999" />
-        <ImageView android:id="@+id/widget_state_icon" android:layout_width="16dp" android:layout_height="16dp" android:layout_marginStart="8dp" android:src="@drawable/widget_going" />
-    </LinearLayout>
-    <LinearLayout android:id="@+id/widget_wide_body" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp" android:orientation="horizontal" android:baselineAligned="false">
-        <LinearLayout android:id="@+id/widget_current_panel" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_vertical">
-            <TextView android:id="@+id/widget_current_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="正在上课" android:textSize="10sp" android:textColor="#999999" android:maxLines="1" />
-            <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="高等数学" android:textSize="16sp" android:textStyle="bold" android:textColor="#eeeeee" android:maxLines="2" android:ellipsize="end" />
-            <TextView android:id="@+id/widget_place" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="逸夫楼 201" android:textSize="11sp" android:textColor="#999999" android:maxLines="1" android:ellipsize="end" />
-            <TextView android:id="@+id/widget_countdown" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="距下课 28 分钟" android:textSize="10sp" android:textColor="#999999" android:maxLines="1" android:ellipsize="end" />
-            <TextView android:id="@+id/widget_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="10sp" android:textColor="#999999" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
-        </LinearLayout>
-        <ImageView android:id="@+id/widget_divider" android:layout_width="1dp" android:layout_height="match_parent" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:layout_marginTop="4dp" android:layout_marginBottom="4dp" android:src="@android:color/darker_gray" android:scaleType="fitXY" android:importantForAccessibility="no" />
-        <LinearLayout android:id="@+id/widget_next_panel" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_vertical">
-            <TextView android:id="@+id/widget_next_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="下一节课" android:textSize="10sp" android:textColor="#999999" android:maxLines="1" />
-            <TextView android:id="@+id/widget_next_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="大学英语" android:textSize="16sp" android:textStyle="bold" android:textColor="#eeeeee" android:maxLines="1" android:ellipsize="end" />
-            <TextView android:id="@+id/widget_next_time" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="09:05–09:50" android:textSize="11sp" android:textColor="#999999" android:maxLines="1" android:ellipsize="end" />
-            <TextView android:id="@+id/widget_next_place" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="信息科技大楼 305" android:textSize="11sp" android:textColor="#999999" android:maxLines="2" android:ellipsize="end" />
-        </LinearLayout>
-    </LinearLayout>
-</LinearLayout>
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingTop="1dp"
+    android:paddingBottom="1dp">
 
+    <FrameLayout
+        android:id="@+id/widget_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/course_widget_surface"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/widget_glow"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY" />
+
+        <LinearLayout
+            android:id="@+id/widget_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:id="@+id/widget_wide_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="4dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:contentDescription="Xachet"
+                    android:src="@mipmap/launcher_icon" />
+
+                <TextView
+                    android:id="@+id/widget_date"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="今天 · 星期四"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_week"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/widget_pill_bg"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="2dp"
+                    android:text="第5周"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/widget_state_icon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/widget_pill_bg"
+                    android:padding="5dp"
+                    android:src="@drawable/widget_going" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_wide_body"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="8dp"
+                android:layout_weight="1"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/widget_current_panel"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_card_bg"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="12dp">
+
+                    <TextView
+                        android:id="@+id/widget_current_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/widget_pill_bg"
+                        android:maxLines="1"
+                        android:paddingHorizontal="7dp"
+                        android:paddingVertical="2dp"
+                        android:text="正在上课"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/widget_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:ellipsize="end"
+                        android:maxLines="2"
+                        android:text="高等数学"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/widget_place"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="逸夫楼 201"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/widget_countdown"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/widget_pill_bg"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:text="距下课 28 分钟"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/widget_footer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:ellipsize="end"
+                        android:maxLines="2"
+                        android:textSize="10sp"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/widget_divider"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/widget_next_panel"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_card_bg"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="12dp">
+
+                    <TextView
+                        android:id="@+id/widget_next_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/widget_pill_bg"
+                        android:maxLines="1"
+                        android:paddingHorizontal="7dp"
+                        android:paddingVertical="2dp"
+                        android:text="下一节课"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/widget_next_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="大学英语"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/widget_next_time"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="09:05–09:50"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/widget_next_place"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:ellipsize="end"
+                        android:maxLines="2"
+                        android:text="信息科技大楼 305"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
     </FrameLayout>
 </FrameLayout>

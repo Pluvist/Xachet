@@ -8,4 +8,3 @@ dependencyResolutionManagement {
 }
 rootProject.name = "XachetNative"
 include(":app")
-includeBuild("../third_party/glasmio")

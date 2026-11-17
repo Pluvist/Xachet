@@ -1,8 +1,18 @@
 # 第三方资源与上游声明
 
-## 原生 Compose 迁移
+## 原生 Compose 界面与参考
 
-`native/` 使用 MeiloX 所引用的 Glasmio 六个开源组件模块。Glasmio 源码按 Apache-2.0 分发，版本、集成修改及原始第三方声明见 [Glasmio 来源](third_party/glasmio/SOURCES.md)。MeiloX 是 GPL-3.0 的界面与交互参考项目：https://github.com/NEORUAA/MeiloX 。未复制其 Apple 字体资源。
+**0.19.82 起**，原生界面采用 AndroidX **Material 3 Expressive**（Compose BOM / Material3）、`androidx.graphics:graphics-shapes` 与平台原生动效规范构建，不再依赖 Glasmio 玻璃库。
+
+历史版本 `0.19.78–0.19.81` 曾使用 MeiloX 所引用的 Glasmio 开源组件模块，相关历史来源声明保留于 [Glasmio 来源](third_party/glasmio/SOURCES.md)。
+
+番茄专注底栏浮窗、统计模块与可变排印参考了 [nsh07/Tomato](https://github.com/nsh07/Tomato)（GPL-3.0）。
+
+## Google Sans Flex 字体
+
+- 文件：`native/app/src/main/res/font/google_sans_flex_vf.ttf`
+- 来源：https://github.com/google/fonts / https://github.com/googlefonts/googlesans-flex
+- 许可证：SIL Open Font License 1.1，全文见 [GoogleSansFlex-LICENSE](native/app/src/main/assets/legal/GoogleSansFlex-LICENSE) 并内置于应用关于页面法律资产中。
 
 旧账号兼容复用 flutter_secure_storage 9.2.4 的 MIT Java 存储与加密实现，见 [来源与许可](third_party/flutter_secure_storage/SOURCES.md)。
 

@@ -1,51 +1,55 @@
 # Xachet
 
-面向湘潭大学的 Android 教务应用，基于 [Sachet](https://github.com/wyvern1723/sachet) 二次开发，由 **Pluvist** 修改与维护。感谢上游作者 **wyvern1723** 的开发与开源贡献。
+面向湘潭大学的 Android 原生教务与学习专注应用，基于 [Sachet](https://github.com/wyvern1723/sachet) 二次开发，由 **Pluvist** 修改与维护。感谢上游作者 **wyvern1723** 的开源贡献。
 
-**0.19.78 起采用 Kotlin / Jetpack Compose 原生界面和 Kotlin 教务服务**。参考了 MeiloX / Glasmio 的液态玻璃交互，新增课程状态栏，保留错峰课表、教务查询、离线缓存、课程实时活动和桌面组件。原 Flutter 实现留作历史与行为对照。
+Xachet 自 **0.19.78** 起以 Kotlin / Jetpack Compose 全量重写，**0.19.82** 起全面升级为 **Material 3 Expressive** 设计体系并换装全新平面香囊图标，集错峰课表、自定义课程、教务查询、番茄专注计时、实时活动（Live Updates / 流体云）与双尺寸桌面小组件于一体。
 
-[English](README_EN.md) · [构建说明](README_DEV.md) · [修改记录](CHANGELOG.md) · [AGPL-3.0](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md)
+[English](README_EN.md) · [构建说明](README_DEV.md) · [更新日志](CHANGELOG.md) · [AGPL-3.0](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md)
 
-## 下载
+## 下载与安装
 
-**当前正式版：0.19.81，要求 Android 13 及以上。**
+**当前正式版：0.19.82（`versionCode 58`），要求 Android 13（API 33）及以上。**
 
 | 架构 | 适用设备 | 下载 |
 | --- | --- | --- |
-| arm64-v8a | 大多数现代 Android 手机和平板 | [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-arm64-v8a.apk) |
-| armeabi-v7a | 运行 Android 13+ 的 32 位 ARM 设备 | [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-armeabi-v7a.apk) |
-| x86_64 | 64 位 x86 设备或模拟器 | [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.81/xachet-v0.19.81-x86_64.apk) |
+| arm64-v8a | 绝大多数现代 Android 手机与平板 | [ARM64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.82/xachet-v0.19.82-arm64-v8a.apk) |
+| armeabi-v7a | 运行 Android 13+ 的 32 位 ARM 设备 | [ARM v7a APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.82/xachet-v0.19.82-armeabi-v7a.apk) |
+| x86_64 | 64 位 x86 设备或模拟器 | [x86_64 APK](https://github.com/Pluvist/Xachet/releases/download/v0.19.82/xachet-v0.19.82-x86_64.apk) |
 
-[最新 Release](https://github.com/Pluvist/Xachet/releases/latest) 附有校验和及签名证书指纹。0.19.79 的包名改为 `com.pluvist.xachet`，会作为独立应用安装，无法覆盖安装使用 `com.pluvist.sachet.next` 的旧版；账号、设置、课表缓存和桌面组件不会自动迁移。请在新版重新登录并添加桌面组件。原生预览版 `.localtest` 也与正式版独立。
+- 校验和（`SHA256SUMS.txt`）与签名证书指纹（`SIGNING-CERTIFICATE.txt`）附于 [最新 Release](https://github.com/Pluvist/Xachet/releases/latest)。
+- 本版本包名为 `com.pluvist.xachet`，与 0.19.79–0.19.81 同包名同签名，可直接覆盖升级；早于 0.19.79（`com.pluvist.sachet.next`）或测试版 `.localtest` 为独立包名，不会自动迁移数据。
+- Android 12 及更早系统可使用历史版本 [0.19.77](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77)。本版精简更新说明见 [发布说明](docs/releases/0.19.82.md)。
 
-Android 12 及更早系统可使用 [0.19.77 历史版本](https://github.com/Pluvist/Xachet/releases/tag/v0.19.77)。本版改动见 [发布说明](docs/releases/0.19.81.md)，功能验证范围见 [原生迁移计划](docs/meilox-migration-plan.md)。
+## 核心特性
 
-## 相比上游的主要变化
+### 1. Material 3 Expressive 原生界面与新图标
+- **全新应用图标**：白色底衬上呈现谷歌风格四色渐变的纯平面香囊轮廓，搭配湘潭大学三拱门造型丝带，同步适配 Android 13+ 单色主题图标与启动图标。
+- **可变排版系统**：融合 `Google Sans Flex` 与小米 `MiSans` 可变字体，结合 Material 3 Expressive 弹性曲线与连续形状容器。
+- **主题与全局缩放**：内置 **韶峰红**（`#9F181E`）、**湘水蓝**（`#014190`）与 **Legacy**（`#F5ABB9` / `#5BCFFA` 蓝粉双色）三套主题色预设，支持 Android 12+ 壁纸动态取色及浅色/深色/跟随系统模式；提供 `90% / 100% / 110% / 120%` 全局界面缩放调节（默认 `110%`）。
 
-| 部分 | Xachet 的修改 |
-| --- | --- |
-| 原生界面 | Kotlin / Jetpack Compose 和 Glasmio 构建主页、课表、教务查询、个人、设置与引导页面；连续圆角、MiSans 可变字体、彩色功能图标和明暗主题。 |
-| 液态玻璃交互 | 左侧主页/课程表导航、右侧个人入口和课程状态栏；支持滚动收纳、详情展开、连续打断与回弹。玻璃使用低分辨率背景多次采样。 |
-| 教学楼错峰 | 自动识别逸夫楼、信息科技大楼，第 1–8 节采用晚 10 分钟的作息；第 9–11 节一致。保留普通/错峰双时间轴及手动纠正。 |
-| 多种课表 | 周、月、学期视图；竖屏双月上下翻页、横屏双周布局。详情、主页、日历、实时活动与组件共享实际作息规则。 |
-| 主页 | 当前课程、下一节与空闲教室概览；校园网认证置顶，培养方案、教材、考试、成绩、绩点、成绩单及校园服务集中展示。 |
-| 教务服务 | Kotlin 实现登录、会话恢复、培养方案、教材预订、考试、成绩、绩点、空闲教室与 PDF 成绩单；培养方案课程和教材支持关键词搜索。 |
-| 缓存与刷新 | 优先读取本地课表，启动及恢复时后台同步；失败保留缓存。按刷新范围淡入淡出，未更新的组件保持原位。保存密码后，会话失效可自动重新登录。 |
-| 课程实时活动 | 上课显示纯数字倒计时；课前/课间标题显示下一课时间地点，内容显示课程时段；全部结束显示完成，无课日不触发。系统提升显示取决于版本、厂商及权限。 |
-| 桌面组件 | 2×2 今日课程与 4×2 横向概览，共享课表与课程状态；静态流光、边缘辉光、明暗模式和刷新调度。 |
-| 引导与设置 | 协议、账号、通知/后台/自启动及桌面组件引导；保留上游鸣谢，移除上游更新检查和旧实验性课程提醒。 |
+### 2. 主页、错峰课表与自定义课程
+- **教学楼错峰作息**：自动识别逸夫楼、信息科技大楼并应用第 1–8 节延后 10 分钟的错峰时间表，第 9–11 节保持统一作息，并可在课程详情中手动切换作息轴。
+- **高可读课表网格**：默认打开自动定位至当前或下一节课程；隐藏课表卡片内的授课教师信息，在不同界面缩放档位下自动匹配最大化字号与最大行数，保证课程名与地点完整显示；支持点击“回到本周”触发重叠逐字弹跳动画。
+- **自定义课程管理**：支持创建、编辑和删除用户自行添加的课程，并与教务导入课表共享作息与颜色映射。
+- **本周状态矩阵**：主页本周课程状态格配备飞出过渡动效，直达每日课程与课节详情。
 
-作息依据学校的《错峰上课试行时间表》。未识别的楼名默认使用普通作息，可在课程详情中修正。视觉偏移不改变实际课程时间。
+### 3. 番茄专注、长计时与统计
+- **双模式计时器**：支持经典番茄钟（专注/短休息/长休息循环与自定义时长）与正向累计长计时。
+- **快速入口与联动**：底栏独立计时按钮，**长按**可弹出快捷浮窗一键继续上次专注或查询空教室；计时页顶部课程详情栏实时展示下一节课信息。
+- **专注数据统计**：记录每日目标进度、近周与近月专注趋势以及全天黄金时段分布。
 
-## 功能与验证
+### 4. 双实时活动与桌面小组件
+- **课程实时活动**：上课时精简展示数字倒计时，课间展示下一课时间与地点，无课日自动保持安静。
+- **番茄专注实时活动**：采用定制纯白钟表图标，番茄钟模式支持通知栏**“停止 / 跳过”**操作，长计时模式支持**“暂停 / 继续 / 停止”**操作；若系统不支持并发多项高优实时活动，专注期间由番茄计时自动接管，并在结束后恢复课程实时活动。
+- **Expressive 桌面小组件**：提供 **2×2 今日课程** 与 **4×2 横向双栏概览** 小组件，重构为 Material 3 Expressive 卡片排版并适度增加高度，共享本地课程与错峰时间缓存。
 
-教务功能沿用 Sachet 的业务规则，并逐项对照原 Dart 请求、参数与解析逻辑重写。已进行原生自动测试、Android 构建和 OnePlus 真机交互及账号只读查询验证。记录见 [教务实测](docs/native-academic-repair-2026-10-31.md) 和 [迁移计划](docs/meilox-migration-plan.md)。
+### 5. 教务查询与离线缓存
+- 原生 Kotlin 教务通道涵盖培养方案、教材预订（取决于学校账号接口权限）、考试安排、成绩与绩点排名、空闲教室与 PDF 成绩单导出，支持培养方案和教材关键词搜索。
+- 优先加载本地缓存并后台静默刷新，保存密码后会话失效可自动重新登录。
 
-学校接口和账号权限会影响结果：测试账号的教材接口返回“无功能权限”，应用保留学校提示。新版包名独立，旧版账号数据不会自动进入新版；没有为所有设备承诺统一帧率。实时活动及组件刷新还受系统权限、省电策略和启动器影响。
+## 构建说明
 
-## 构建
-
-开发环境：JDK 21+、Android SDK 37、NDK 27.1.12297006、CMake 3.22.1。工具版本由工程固定。
+构建要求：**JDK 21+**、**Android SDK 37**、**NDK 27.1.12297006**、**CMake 3.22.1**（工程版本详见 [README_DEV.md](README_DEV.md)）。
 
 Windows：
 
@@ -53,23 +57,20 @@ Windows：
 .\native\build-native.ps1
 ```
 
-Linux/macOS（安装上述 Android 工具链后）：
+Linux / macOS：
 
 ```sh
 bash native/gradlew -p native :app:assembleDebug :app:testDebugUnitTest --console=plain
 ```
 
-默认生成隔离测试包。签名、多架构及 CI 说明见 [README_DEV.md](README_DEV.md)。仓库不包含发布私钥和真实账号。Flutter 不再是本版本正式 APK 构建入口；其他平台旧工程保留但未完成原生迁移。
+正式多架构签名构建、环境变量与本地目录说明见 [README_DEV.md](README_DEV.md)。
 
-## 许可证与鸣谢
+## 许可证与致谢
 
-项目整体按 [AGPL-3.0](LICENSE) 开源，Sachet 原始代码保留 [MIT 许可证](LICENSE-MIT) 及 **Copyright (c) 2025 wyvern1723**。修改版权为 **Copyright (c) 2026 Pluvist (Xachet modifications)**。分发时请保留对应源码、版权及第三方许可。
+本项目整体遵循 [AGPL-3.0](LICENSE) 开源；上游 Sachet 原始代码保留 [MIT 许可证](LICENSE-MIT)（`Copyright (c) 2025 wyvern1723`），Xachet 修改部分版权为 `Copyright (c) 2026 Pluvist (Xachet modifications)`。
 
-- 上游：[wyvern1723/Sachet](https://github.com/wyvern1723/sachet)，感谢作者 **wyvern1723**。
-- 原生视觉与组件：[MeiloX](https://github.com/NEORUAA/MeiloX)、[Glasmio](https://github.com/NEORUAA/Glasmio)。未复制 Apple 字体。
-- 轮廓、动画与字体：Kyant0/Shapes、Cresto、MiSans；各自遵循独立许可。
-- 历史 Flutter 实现还参考 NexioSchedule、Kyant Backdrop、HyperCeiler，保留相关来源及声明。
+- 上游项目：[wyvern1723/sachet](https://github.com/wyvern1723/sachet)
+- 参考项目：[Tomato](https://github.com/nsh07/Tomato)（GPL-3.0）、[HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)（AGPL-3.0）、[Cresto](https://github.com/Nevodev/Cresto)（Apache-2.0）、[MeiloX](https://github.com/NEORUAA/MeiloX)
+- 开源字体与依赖：`Google Sans Flex`（SIL OFL 1.1）、`MiSans` 可变字体（小米字体知识产权许可）、`PdfBox-Android`（Apache-2.0）等，详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-完整来源与许可证见 [第三方说明](THIRD_PARTY_NOTICES.md)。问题请在 [Xachet Issues](https://github.com/Pluvist/Xachet/issues) 反馈。
-
-大部分构建与本日志由 AI 完成。感谢学长 @wyvern1723 的付出，希望湘潭大学可以越办越好。如果 Xachet 对你有帮助，欢迎 Star。
+问题反馈请前往 [Xachet Issues](https://github.com/Pluvist/Xachet/issues)。欢迎 Star 支持。

@@ -1,10 +1,12 @@
 package com.pluvist.sachet.next
 
+import androidx.compose.runtime.Immutable
 import org.jsoup.Jsoup
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.net.URI
 
+@Immutable
 data class AcademicForm(val choices:List<QueryChoice>,val notices:List<String> = emptyList())
 class AcademicFailure(val reason:String,message:String):IllegalStateException(message)
 

@@ -1,19 +1,116 @@
 package com.pluvist.sachet.next
 
+import androidx.compose.runtime.Immutable
 import java.time.*
 import java.time.temporal.ChronoUnit
 import org.json.JSONArray
 import org.json.JSONObject
 
+@Immutable
 data class Course(
     val id: String, val title: String, val place: String, val teacher: String,
     val weekday: Int, val first: Int, val last: Int, val weeks: Set<Int>,
     val routine: String = "auto",
 ) {
+    val isCustom: Boolean get() = id.startsWith(CustomCourseCodec.ID_PREFIX)
     val staggered: Boolean get() = routine == "staggered" ||
         (routine == "auto" && (place.contains("逸夫楼") || place.contains("信息科技大楼")))
     fun interval(): Pair<LocalTime, LocalTime> =
         LessonTimes.start(first, staggered) to LessonTimes.end(last, staggered)
+}
+
+internal val DefaultTeachingBuildings: List<String> = listOf(
+    "第一教学楼",
+    "第二教学楼",
+    "第三教学楼",
+    "逸夫楼",
+    "信息科技大楼",
+    "兴湘教学楼",
+    "北山教学楼",
+    "尚美楼",
+    "土木楼",
+    "化学化工大楼",
+    "经管大楼",
+    "物理楼",
+    "体育馆",
+    "图书馆",
+)
+
+internal fun extractBuildingName(place: String): String {
+    val trimmed = place.trim()
+    if (trimmed.isBlank()) return ""
+    DefaultTeachingBuildings.firstOrNull { trimmed.startsWith(it) }?.let { return it }
+    return trimmed
+        .replace(Regex("[A-Za-z]?\\d{2,4}.*$"), "")
+        .replace(Regex("[（(].*?[)）]$"), "")
+        .trim()
+        .ifBlank { trimmed }
+}
+
+internal fun resolveAvailableBuildings(courses: List<Course>): List<String> {
+    val dynamic = courses.mapNotNull { c ->
+        extractBuildingName(c.place).takeIf { it.isNotBlank() && it.length in 2..12 }
+    }
+    return (dynamic + DefaultTeachingBuildings).distinct()
+}
+
+internal object CustomCourseCodec {
+    const val ID_PREFIX = "custom-"
+
+    fun serialize(courses: List<Course>): String {
+        val array = JSONArray()
+        courses.forEach { c ->
+            array.put(
+                JSONObject()
+                    .put("id", c.id)
+                    .put("title", c.title)
+                    .put("place", c.place)
+                    .put("teacher", c.teacher)
+                    .put("weekday", c.weekday)
+                    .put("first", c.first)
+                    .put("last", c.last)
+                    .put("weeks", JSONArray(c.weeks.sorted()))
+                    .put("routine", c.routine),
+            )
+        }
+        return array.toString()
+    }
+
+    fun parse(body: String): List<Course> = runCatching {
+        val array = JSONArray(body)
+        buildList(array.length()) {
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val id = obj.optString("id").trim()
+                val title = obj.optString("title").trim()
+                val weekday = obj.optInt("weekday")
+                val first = obj.optInt("first")
+                val last = obj.optInt("last")
+                val weeksArr = obj.optJSONArray("weeks") ?: continue
+                val weeks = sortedSetOf<Int>()
+                for (w in 0 until weeksArr.length()) {
+                    val weekNum = weeksArr.optInt(w)
+                    if (weekNum in 1..60) weeks.add(weekNum)
+                }
+                if (id.isBlank() || title.isBlank() || weekday !in 1..7 || first !in 1..11 || last !in first..11 || weeks.isEmpty()) {
+                    continue
+                }
+                add(
+                    Course(
+                        id = if (id.startsWith(ID_PREFIX)) id else "$ID_PREFIX$id",
+                        title = title,
+                        place = obj.optString("place").trim(),
+                        teacher = obj.optString("teacher").trim(),
+                        weekday = weekday,
+                        first = first,
+                        last = last,
+                        weeks = weeks,
+                        routine = obj.optString("routine", "auto").takeIf { it in setOf("auto", "normal", "staggered") } ?: "auto",
+                    ),
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
 }
 
 object LessonTimes {
@@ -75,10 +172,12 @@ object CourseParser {
     }
 }
 
+@Immutable
 data class DatedCourse(val course: Course, val start: Instant, val end: Instant,val section:Int=course.first) {
     fun startTime(zone:ZoneId=ZoneId.systemDefault())=start.atZone(zone).toLocalTime()
     fun endTime(zone:ZoneId=ZoneId.systemDefault())=end.atZone(zone).toLocalTime()
 }
+@Immutable
 data class CourseStatus(val current: DatedCourse?, val next: DatedCourse?, val today: List<DatedCourse>) {
     val completed: Boolean get() = today.isNotEmpty() && current == null && next == null
 }

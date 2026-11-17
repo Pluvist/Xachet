@@ -15,18 +15,16 @@ import android.os.Looper
 import android.os.PowerManager
 import java.util.concurrent.Executors
 
-/** Keeps the numeric notification title current while a lesson is running.
- * The native chronometer still drives the system chip. No wake lock or ticking
- * alarm is used, and screen-off pauses title updates until wake/class end. */
+/** Keeps the live course notification title, progress bar, and short badge current while a lesson or promoted break is active. */
 class CourseCountdownService : Service() {
     private val handler = Handler(Looper.getMainLooper())
-    private var end = 0L
-    private var notificationBuilder: Notification.Builder? = null
+    private var deadline = 0L
+    private var lessons: List<LiveLesson> = emptyList()
     private val notificationManager by lazy {
-        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
     }
     private val powerManager by lazy {
-        getSystemService(Context.POWER_SERVICE) as PowerManager
+        getSystemService(Context.POWER_SERVICE) as? PowerManager
     }
     private var registered = false
     private val screens = object : BroadcastReceiver() {
@@ -35,63 +33,92 @@ class CourseCountdownService : Service() {
     private val tick = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
-            if (end <= now) {
+            if (deadline <= now) {
                 handler.removeCallbacks(this)
                 val app = applicationContext
                 worker.execute { CourseLiveActivity.refresh(app) }
                 return
             }
-            val interactive = powerManager.isInteractive
-            if (interactive) notificationBuilder?.let { builder ->
-                val updated = builder.setContentTitle(CourseTimeline.countdown(end - now)).build()
-                try {
-                    notificationManager.notify(CourseLiveActivity.ID, updated)
-                } catch (_: SecurityException) { stopSelf(); return }
+            val state = CourseTimeline.resolve(now, lessons)
+            val currentDeadline = when {
+                state.phase == LiveCoursePhase.IN_CLASS -> state.current?.end ?: 0L
+                state.phase == LiveCoursePhase.WAITING && CourseTimeline.promote(state, now) -> state.next?.start ?: 0L
+                else -> 0L
             }
-            handler.postDelayed(this, if (interactive) 1000 - now % 1000 else end - now)
+            if (currentDeadline <= now) {
+                handler.removeCallbacks(this)
+                val app = applicationContext
+                worker.execute { CourseLiveActivity.refresh(app) }
+                return
+            }
+            deadline = currentDeadline
+            val interactive = powerManager?.isInteractive != false
+            if (interactive) {
+                val updated = CourseLiveActivity.buildNotificationBuilder(this@CourseCountdownService, state, now).build()
+                try {
+                    notificationManager?.notify(CourseLiveActivity.ID, updated)
+                } catch (_: RuntimeException) {
+                    stopSelf()
+                    return
+                }
+            }
+            handler.postDelayed(this, if (interactive) 1000 - now % 1000 else (deadline - now).coerceAtLeast(1000L))
         }
     }
     private fun schedule() { handler.removeCallbacks(tick); handler.post(tick) }
     override fun onCreate() {
         super.onCreate()
         val filter = IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) }
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(screens, filter, Context.RECEIVER_NOT_EXPORTED)
-        else registerReceiver(screens, filter)
-        registered = true
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(screens, filter, Context.RECEIVER_NOT_EXPORTED)
+            else registerReceiver(screens, filter)
+            registered = true
+        }
+    }
+    private fun enterForeground(notification: Notification): Boolean = try {
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(CourseLiveActivity.ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(CourseLiveActivity.ID, notification)
+        }
+        true
+    } catch (error: RuntimeException) {
+        android.util.Log.w("CourseActivity", "Foreground countdown unavailable", error)
+        false
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val suppliedEnd = intent?.getLongExtra("end", 0L) ?: 0L
-        val supplied = if (Build.VERSION.SDK_INT >= 33) intent?.getParcelableExtra("notification", Notification::class.java)
-            else @Suppress("DEPRECATION") intent?.getParcelableExtra<Notification>("notification")
-        // Reject a queued start after the user disabled/dismissed the activity.
-        if (supplied == null || suppliedEnd <= System.currentTimeMillis() || CourseLiveActivity.activeEnd(this) != suppliedEnd) {
-            stopSelf(); return START_NOT_STICKY
+        val now = System.currentTimeMillis()
+        val resolvedDeadline = CourseLiveActivity.activeDeadline(this)
+        val parsedLessons = CourseTimeline.lessons(CourseLiveActivity.data(this))
+        val state = CourseTimeline.resolve(now, parsedLessons)
+        val valid = resolvedDeadline != null && resolvedDeadline > now &&
+            (state.phase == LiveCoursePhase.IN_CLASS || (state.phase == LiveCoursePhase.WAITING && CourseTimeline.promote(state, now)))
+
+        if (!valid) {
+            // Android 12+ throws ForegroundServiceDidNotStartInTimeException if stopSelf() is called
+            // after startForegroundService() without first invoking startForeground().
+            if (enterForeground(CourseLiveActivity.buildFallbackForegroundNotification(this))) {
+                runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+            }
+            stopSelf()
+            return START_NOT_STICKY
         }
-        end = suppliedEnd
-        try {
-            if (Build.VERSION.SDK_INT >= 34) startForeground(CourseLiveActivity.ID, supplied, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            else startForeground(CourseLiveActivity.ID, supplied)
-        } catch (error: RuntimeException) {
-            android.util.Log.w("CourseActivity", "Foreground countdown unavailable", error)
-            stopSelf(); return START_NOT_STICKY
+
+        val builder = CourseLiveActivity.buildNotificationBuilder(this, state, now)
+        if (!enterForeground(builder.build())) {
+            stopSelf()
+            return START_NOT_STICKY
         }
-        // Recover immutable notification details only when the source changes.
-        // The one-second tick then changes just the numeric title.
-        notificationBuilder = (if (Build.VERSION.SDK_INT >= 24) Notification.Builder.recoverBuilder(this, supplied)
-            else Notification.Builder(this).setSmallIcon(R.drawable.ic_course_live)
-                .setOngoing(true).setShowWhen(false).setContentIntent(supplied.contentIntent).setDeleteIntent(supplied.deleteIntent)
-                .setStyle(Notification.BigTextStyle().setBigContentTitle(supplied.extras.getCharSequence(Notification.EXTRA_TITLE_BIG))
-                    .bigText(supplied.extras.getCharSequence(Notification.EXTRA_BIG_TEXT))).apply {
-                        supplied.actions?.forEach { action -> addAction(action) }
-                    }).setOnlyAlertOnce(true)
+        lessons = parsedLessons
+        deadline = resolvedDeadline
         schedule()
         return START_NOT_STICKY
     }
     override fun onDestroy() {
         handler.removeCallbacks(tick)
-        if (registered) unregisterReceiver(screens)
-        if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_DETACH)
-        else @Suppress("DEPRECATION") stopForeground(false)
+        if (registered) runCatching { unregisterReceiver(screens) }
+        if (Build.VERSION.SDK_INT >= 24) runCatching { stopForeground(STOP_FOREGROUND_DETACH) }
+        else @Suppress("DEPRECATION") runCatching { stopForeground(false) }
         val app = applicationContext
         worker.execute { CourseLiveActivity.cleanupCountdown(app) }
         super.onDestroy()

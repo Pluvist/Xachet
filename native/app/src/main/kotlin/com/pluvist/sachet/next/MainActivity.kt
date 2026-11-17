@@ -1,366 +1,1599 @@
+@file:OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalMaterial3WindowSizeClassApi::class,
+    ExperimentalFoundationApi::class,
+)
+
 package com.pluvist.sachet.next
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Configuration
 import android.os.Bundle
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.setContent
 import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.layout.*
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarViewWeek
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.rounded.CalendarViewWeek
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ToggleButtonShapes
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.ripple
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.offset
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionOnScreen
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
-import org.json.JSONObject
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.neoruaa.glasmio.core.*
-import io.github.neoruaa.glasmio.glass.*
-import io.github.neoruaa.glasmio.icons.*
-import io.github.neoruaa.glasmio.scaffold.*
-import io.github.neoruaa.glasmio.ui.*
-import io.github.neoruaa.glasmio.glass.render.backdrops.rememberLayerBackdrop
-import io.github.neoruaa.glasmio.glass.render.backdrops.rememberCanvasBackdrop
-import io.github.neoruaa.glasmio.glass.render.backdrops.layerBackdrop
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import java.time.*
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.Instant
+import java.time.LocalDate
+
+@Immutable
+private data class PrimaryTab(
+    val key: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector,
+)
+
+@Immutable
+internal sealed interface DetailRoute {
+    val routeKey: String
+
+    @Immutable
+    data object CourseStatus : DetailRoute {
+        override val routeKey: String = "status"
+    }
+
+    @Immutable
+    data class CourseDay(val date: LocalDate) : DetailRoute {
+        override val routeKey: String = "day:$date"
+    }
+
+    @Immutable
+    data class CourseLesson(val course: Course) : DetailRoute {
+        override val routeKey: String = "lesson:${course.id}:${course.weekday}:${course.first}"
+    }
+
+    @Immutable
+    data class Query(val featureKey: String) : DetailRoute {
+        override val routeKey: String = "query:$featureKey"
+    }
+
+    @Immutable
+    data object Transcript : DetailRoute {
+        override val routeKey: String = "transcript"
+    }
+
+    @Immutable
+    data object Login : DetailRoute {
+        override val routeKey: String = "login"
+    }
+
+    @Immutable
+    data object WebLogin : DetailRoute {
+        override val routeKey: String = "webLogin"
+    }
+
+    @Immutable
+    data object Permissions : DetailRoute {
+        override val routeKey: String = "permissions"
+    }
+
+    @Immutable
+    data object Settings : DetailRoute {
+        override val routeKey: String = "settings"
+    }
+
+    @Immutable
+    data object Appearance : DetailRoute {
+        override val routeKey: String = "appearance"
+    }
+
+    @Immutable
+    data object Files : DetailRoute {
+        override val routeKey: String = "files"
+    }
+
+    @Immutable
+    data object FileManager : DetailRoute {
+        override val routeKey: String = "fileManager"
+    }
+
+    @Immutable
+    data object About : DetailRoute {
+        override val routeKey: String = "about"
+    }
+
+    @Immutable
+    data object Profile : DetailRoute {
+        override val routeKey: String = "profile"
+    }
+}
+
+internal fun routeFromDestination(destination: String): DetailRoute? = when (destination) {
+    "profile" -> DetailRoute.Profile
+    "login" -> DetailRoute.Login
+    "webLogin" -> DetailRoute.WebLogin
+    "permissions" -> DetailRoute.Permissions
+    "settings" -> DetailRoute.Settings
+    "appearance" -> DetailRoute.Appearance
+    "files" -> DetailRoute.Files
+    "fileManager" -> DetailRoute.FileManager
+    "about" -> DetailRoute.About
+    "transcript" -> DetailRoute.Transcript
+    else -> QueryFeature.all.firstOrNull { it.key == destination }?.let { DetailRoute.Query(it.key) }
+}
+
+private val DetailStackSaver: Saver<List<DetailRoute>, ArrayList<String>> = Saver(
+    save = { stack ->
+        ArrayList<String>(stack.size).apply {
+            stack.forEach { route ->
+                val encoded = when (route) {
+                    DetailRoute.CourseStatus -> "status"
+                    is DetailRoute.CourseDay -> "day|${route.date}"
+                    is DetailRoute.CourseLesson -> JSONObject().apply {
+                        put("t", "lesson")
+                        put("id", route.course.id)
+                        put("title", route.course.title)
+                        put("place", route.course.place)
+                        put("teacher", route.course.teacher)
+                        put("weekday", route.course.weekday)
+                        put("first", route.course.first)
+                        put("last", route.course.last)
+                        put("weeks", JSONArray(route.course.weeks.sorted()))
+                        put("routine", route.course.routine)
+                    }.toString()
+
+                    is DetailRoute.Query -> "query|${route.featureKey}"
+                    DetailRoute.Transcript -> "transcript"
+                    DetailRoute.Login -> "login"
+                    DetailRoute.WebLogin -> "webLogin"
+                    DetailRoute.Permissions -> "permissions"
+                    DetailRoute.Settings -> "settings"
+                    DetailRoute.Appearance -> "appearance"
+                    DetailRoute.Files -> "files"
+                    DetailRoute.FileManager -> "fileManager"
+                    DetailRoute.About -> "about"
+                    DetailRoute.Profile -> "profile"
+                }
+                add(encoded)
+            }
+        }
+    },
+    restore = { list ->
+        list.mapNotNull { encoded ->
+            when {
+                encoded == "status" -> DetailRoute.CourseStatus
+                encoded.startsWith("day|") -> runCatching {
+                    DetailRoute.CourseDay(LocalDate.parse(encoded.removePrefix("day|")))
+                }.getOrNull()
+
+                encoded.startsWith("query|") -> DetailRoute.Query(encoded.removePrefix("query|"))
+                encoded.startsWith("{") -> runCatching {
+                    val obj = JSONObject(encoded)
+                    val arr = obj.getJSONArray("weeks")
+                    val weeks = sortedSetOf<Int>().apply {
+                        for (i in 0 until arr.length()) add(arr.getInt(i))
+                    }
+                    DetailRoute.CourseLesson(
+                        Course(
+                            id = obj.getString("id"),
+                            title = obj.getString("title"),
+                            place = obj.getString("place"),
+                            teacher = obj.getString("teacher"),
+                            weekday = obj.getInt("weekday"),
+                            first = obj.getInt("first"),
+                            last = obj.getInt("last"),
+                            weeks = weeks,
+                            routine = obj.optString("routine", "auto"),
+                        ),
+                    )
+                }.getOrNull()
+
+                else -> routeFromDestination(encoded)
+            }
+        }
+    },
+)
 
 class MainActivity : ComponentActivity() {
-    override fun dispatchTouchEvent(event:android.view.MotionEvent):Boolean {
-        if(BuildConfig.BUILD_TYPE=="benchmark" && event.actionMasked==android.view.MotionEvent.ACTION_DOWN) {
-            val started=System.nanoTime()
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (BuildConfig.BUILD_TYPE == "benchmark" && event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val started = System.nanoTime()
             android.view.Choreographer.getInstance().postFrameCallback {
-                android.util.Log.w("XachetInputFrame","dispatch_to_callback_ns=${System.nanoTime()-started}")
+                android.util.Log.w("XachetInputFrame", "dispatch_to_callback_ns=${System.nanoTime() - started}")
             }
         }
         return super.dispatchTouchEvent(event)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState); enableEdgeToEdge()
-        if(BuildConfig.BUILD_TYPE=="preview" && intent.getBooleanExtra("academic_probe",false)) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        if (BuildConfig.BUILD_TYPE == "preview" && intent.getBooleanExtra("academic_probe", false)) {
             lifecycleScope.launch { AcademicDiagnostics.run(AcademicRepository(this@MainActivity)) }
         }
         setContent {
-            val vm:SachetViewModel=viewModel()
-            LifecycleResumeEffect(vm) { vm.onForeground();onPauseOrDispose{} }
-            val benchmarkFixture=BuildConfig.APPLICATION_ID.endsWith(".benchmark")&&intent.getBooleanExtra("load_fixture",false)
-            val benchmarkGuide=BuildConfig.APPLICATION_ID.endsWith(".benchmark")&&intent.getBooleanExtra("show_onboarding",false)
-            LaunchedEffect(benchmarkFixture){if(benchmarkFixture)vm.loadBenchmarkFixture()}
+            val vm: SachetViewModel = viewModel()
+            LifecycleResumeEffect(vm) {
+                vm.onForeground()
+                onPauseOrDispose {}
+            }
+            val benchmarkFixture = BuildConfig.APPLICATION_ID.endsWith(".benchmark") &&
+                intent.getBooleanExtra("load_fixture", false)
+            val benchmarkGuide = BuildConfig.APPLICATION_ID.endsWith(".benchmark") &&
+                intent.getBooleanExtra("show_onboarding", false)
+            LaunchedEffect(benchmarkFixture) { if (benchmarkFixture) vm.loadBenchmarkFixture() }
+
             val data by vm.state.collectAsStateWithLifecycle()
-            val settings=remember(data.settingsSnapshot){JSONObject(data.settingsSnapshot)}
-            val dark=when(settings.optInt("themeMode")){1->false;2->true;else->isSystemInDarkTheme()}
-            val configuredAccent=runCatching{Color(android.graphics.Color.parseColor(settings.optString("themeColor","#0088FF")))}.getOrDefault(Color(0xFF0088FF))
-            // Resolve the existing default into a deeper light appearance without
-            // changing saved custom colors or the established dark appearance.
-            val accent=if(!dark&&configuredAccent==Color(0xFF0088FF))Color(0xFF0066CC)else configuredAccent
-            SideEffect{androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).apply {
-                isAppearanceLightStatusBars=!dark;isAppearanceLightNavigationBars=!dark
-            }}
-            SachetTextEnvironment {
-            GlasmioTheme(isDark=dark,colorScheme=glasmioColorScheme(dark,accent),typography=SachetTypography,letterSpacing=0.sp,
-                appearance=GlassAppearance(blurRadiusMultiplier=3f,refractionAmountMultiplier=1.25f,
-                    materialFaceOpacity=0f,frostOverlayColor=(if(dark)Color.Black else Color.White).copy(alpha=.10f))) { GlasmioIconProvider(resolver=GlasmioIconResolver { name ->
-            MaterialGlasmioIconResolver.resolve(if(name==SfSymbol.Layers.systemName) "calendar" else name)
-        }) {
-            // Isolated test entry only; replay the guide without clearing any saved app data.
-            var onboarding by rememberSaveable{mutableStateOf<Boolean?>(if(benchmarkGuide)true else if(benchmarkFixture)false else null)}
-            // Boot readiness is independent of the network spinner: the initial
-            // automatic refresh used to set loading=true before this effect ran.
-            LaunchedEffect(data.initialized){if(onboarding==null&&data.initialized)onboarding=!settings.optBoolean("hasReadDisclaimer")}
-            ReportDrawnWhen{data.initialized&&onboarding!=null}
-            LaunchedEffect(data.initialized,onboarding){
-                if(data.initialized&&onboarding!=null){withFrameNanos{};vm.onFirstContentFrame()}
+            val settings = remember(data.settingsSnapshot) { JSONObject(data.settingsSnapshot) }
+            val dark = when (settings.optInt("themeMode")) {
+                1 -> false
+                2 -> true
+                else -> isSystemInDarkTheme()
             }
-            val notifications=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){
-                vm.onNotificationPermissionChanged()
+            val colorScheme = remember(data.settingsSnapshot, dark) {
+                resolveXachetColorScheme(
+                    settings = settings,
+                    darkTheme = dark,
+                    context = this@MainActivity,
+                )
             }
-            val lifecycle=LocalLifecycleOwner.current.lifecycle
-            val notificationsEnabled=settings.optBoolean("isEnableCourseLiveActivity",true)||settings.optBoolean("isEnableCourseReminders",true)
-            LaunchedEffect(data.initialized,data.hasSchedule,data.courses.isNotEmpty(),notificationsEnabled,onboarding,lifecycle){
-                if(onboarding==false&&!BuildConfig.APPLICATION_ID.endsWith(".benchmark"))lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    vm.awaitFirstContentFrame()
-                    if(vm.shouldRequestNotificationPermission()) {
-                        notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                        vm.markNotificationPermissionRequested()
+            val uiScale = remember(data.settingsSnapshot) { resolveXachetUiScale(settings) }
+            val baseDensity = LocalDensity.current
+            val scaledDensity = remember(baseDensity.density, baseDensity.fontScale, uiScale) {
+                Density(density = baseDensity.density * uiScale, fontScale = baseDensity.fontScale)
+            }
+
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
+
+            CompositionLocalProvider(LocalDensity provides scaledDensity) {
+                MaterialExpressiveTheme(
+                    colorScheme = colorScheme,
+                    motionScheme = MotionScheme.expressive(),
+                    shapes = XachetShapes,
+                    typography = XachetTypography,
+                ) {
+                    var onboarding by rememberSaveable {
+                        mutableStateOf<Boolean?>(
+                            when {
+                                benchmarkGuide -> true
+                                benchmarkFixture -> false
+                                else -> null
+                            },
+                        )
+                    }
+                    LaunchedEffect(data.initialized) {
+                        if (onboarding == null && data.initialized) {
+                            onboarding = !settings.optBoolean("hasReadDisclaimer")
+                        }
+                    }
+                    ReportDrawnWhen { data.initialized && onboarding != null }
+                    LaunchedEffect(data.initialized, onboarding) {
+                        if (data.initialized && onboarding != null) {
+                            withFrameNanos {}
+                            vm.onFirstContentFrame()
+                        }
+                    }
+
+                    val notifications = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission(),
+                    ) {
+                        vm.onNotificationPermissionChanged()
+                    }
+                    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+                    val notificationsEnabled = settings.optBoolean("isEnableCourseLiveActivity", true) ||
+                        settings.optBoolean("isEnableCourseReminders", true)
+                    LaunchedEffect(
+                        data.initialized,
+                        data.hasSchedule,
+                        data.courses.isNotEmpty(),
+                        notificationsEnabled,
+                        onboarding,
+                        lifecycle,
+                    ) {
+                        if (onboarding == false && !BuildConfig.APPLICATION_ID.endsWith(".benchmark")) {
+                            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                                if (vm.shouldRequestNotificationPermission()) {
+                                    runCatching {
+                                        notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    vm.markNotificationPermissionRequested()
+                                }
+                            }
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.surface,
+                    ) {
+                        val rootMotionScheme = MaterialTheme.motionScheme
+                        AnimatedContent(
+                            targetState = onboarding,
+                            transitionSpec = { ExpressiveMotion.sharedAxisTransform(rootMotionScheme) },
+                            label = "OnboardingToAppTransition",
+                        ) { currentOnboarding ->
+                            when (currentOnboarding) {
+                                null -> Box(Modifier.fillMaxSize())
+                                true -> OnboardingScreen(
+                                    data = data,
+                                    vm = vm,
+                                    onFinished = { onboarding = false },
+                                )
+
+                                false -> SachetApp(vm = vm, data = data)
+                            }
+                        }
                     }
                 }
             }
-            Box(Modifier.fillMaxSize().background(LocalGlassColors.current.groupedBackground)) {
-            if(onboarding!=null) ProvisionAppHost(onboarding==true,data,vm,onFinished={onboarding=false}){SachetApp(vm)}
-            }
-        } } } }
+        }
     }
 }
 
 @Composable
-private fun SachetApp(vm:SachetViewModel=viewModel()) {
-    val data by vm.state.collectAsStateWithLifecycle()
+internal fun SachetApp(vm: SachetViewModel, data: AppData) {
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val widthSizeClass = if (activity != null) {
+        calculateWindowSizeClass(activity).widthSizeClass
+    } else {
+        WindowWidthSizeClass.Compact
+    }
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val scope = rememberCoroutineScope()
+
     var selected by rememberSaveable { mutableStateOf("home") }
-    var detail by rememberSaveable { mutableStateOf<String?>(null) }
-    val pageOrigins=remember{PageOrigins()}
-    val academicSearch=remember{AcademicSearchController()}
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    LaunchedEffect(detail){focus.clearFocus(force=true);keyboard?.hide()}
-    val courseMorph=remember{CourseMorphController()}
-    SideEffect{courseMorph.beforeOpen={focus.clearFocus(force=true);keyboard?.hide()}}
-    var viewport by remember { mutableStateOf<BottomNavigationViewport?>(null) }
-    val navigationScroll=rememberCourseNavigationScrollState(viewport,enabled=detail==null)
-    // A single spring retargets from its current position/velocity when navigation is
-    // interrupted. Detail-to-detail navigation keeps the accessory docked throughout.
-    val accessoryDocking=animateFloatAsState(if(detail!=null)1f else 0f,
-        spring(dampingRatio=.9f,stiffness=350f,visibilityThreshold=.001f),label="Course accessory docking")
-    val statusChromeRequested by remember(courseMorph){derivedStateOf{courseMorph.statusChromeRequested}}
-    val statusDeparture=animateFloatAsState(if(statusChromeRequested)1f else 0f,
-        if(statusChromeRequested)CourseMorphMotion.open(CourseMorphContent.Status)
-        else CourseMorphMotion.close(CourseMorphContent.Status,courseMorph.retargeting),
-        label="Status companion flight")
-    val chromeDeparture=remember(accessoryDocking,statusDeparture){derivedStateOf{
-        maxOf(accessoryDocking.value,statusDeparture.value).coerceIn(0f,1f)
-    }}
-    var scheduleMode by rememberSaveable{mutableIntStateOf(0)}
-    val configuration=LocalConfiguration.current
-    val landscape=configuration.screenWidthDp>configuration.screenHeightDp
-    LaunchedEffect(selected,detail,scheduleMode,landscape){
-        if(selected=="schedule"&&scheduleMode>0&&landscape&&detail==null)navigationScroll.compact()else navigationScroll.expand()
+    if (selected !in PrimaryTabOrder) {
+        selected = "home"
     }
-    val tabs = remember { listOf(
-        GlasmioTabItem("home", "主页", SfSymbol.House),
-        GlasmioTabItem("schedule", "课程表", SfSymbol.Layers),
-    ) }
-    val semester=remember(data.courses,data.settingsSnapshot){vm.repository.semester()}
-    val initialStatus=remember(data.courses,semester){CourseClock.status(data.courses,semester,Instant.now())}
-    val statusLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    val status by produceState(initialStatus,data.courses,semester,statusLifecycle) {
-        statusLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) { while(true) {
-            value=CourseClock.status(data.courses,semester,Instant.now())
-            val boundary=listOfNotNull(value.current?.end,value.next?.start).minOrNull()
-            delay(boundary?.let{Duration.between(Instant.now(),it).toMillis().coerceIn(100,30_000)}?:30_000)
-        } }
+    var scheduleMode by rememberSaveable { mutableIntStateOf(0) }
+
+    val hero = remember { HeroTransitionController() }
+
+    val openHero: (String, DetailRoute) -> Unit = remember(hero, scope) {
+        { heroKey, route -> hero.openHero(heroKey, route, scope) }
     }
-    BackHandler(detail!=null){detail=null}
-    val navigate:(String)->Unit={if(!courseMorph.isBusy){if(it in setOf("home","schedule","profile")){selected=it;detail=null}else detail=it}}
-    // Inner page controls sample an independent static plane. The bottom bar alone
-    // samples the page plane; sampling that plane from its own children creates a
-    // RenderNode cycle and a native stack overflow on Android's render thread.
-    val canvasColor=LocalGlassColors.current.groupedBackground
-    val staticBackdrop=rememberCanvasBackdrop{
-        // Include the filter's padded sampling support, not just the control face.
-        drawContext.canvas.nativeCanvas.drawColor(canvasColor.toArgb())
+
+    val openSlide: (DetailRoute) -> Unit = remember(hero, scope) {
+        { route -> hero.openSlideOrPush(route, scope) }
     }
-    val edgeBackdrop=rememberLayerBackdrop()
-    val anchoredMenuDepth=rememberAnchoredMenuDepthState()
-    val anchoredMenuIsDark=LocalGlassColors.current.isDark
-    val anchoredMenuDimColor=if(anchoredMenuIsDark)Color.Black else Color(0xFF18232D)
-    val courseDepthBackdrop=rememberLayerBackdrop()
-    val courseDepthEnabled=remember(courseMorph){ { courseMorph.isBusy } }
-    val courseSearchEnabled=remember(courseMorph){derivedStateOf{!courseMorph.isBusy}}
-    val visiblePageBackdrop=remember(edgeBackdrop,courseDepthBackdrop,courseDepthEnabled){
-        CourseDynamicBackdrop(edgeBackdrop,courseDepthBackdrop,courseDepthEnabled)
-    }
-    val courseCaptureEpoch=remember(courseMorph){derivedStateOf{courseMorph.flight?.captureEpoch?:-1}}
-    val depthSceneRevision=remember(data.reloadRevision,data.courses,data.settingsSnapshot,data.appearanceSnapshot,data.colors,canvasColor){Any()}
-    val courseRaster=remember{CourseBackgroundRasterState()}
-    val courseBackgroundCapture=rememberCourseBackgroundCapture(courseCaptureEpoch,
-        depthSceneRevision,edgeBackdrop.graphicsLayer,courseRaster)
-    val coursePanelBackdrop=rememberCourseStaticRasterBackdrop(courseRaster,courseCaptureEpoch,depthSceneRevision,
-        courseDepthBackdrop)
-    CompositionLocalProvider(LocalCourseMorph provides courseMorph) {
-    Box(Modifier.fillMaxSize().onGloballyPositioned{
-        courseMorph.rootScreenOrigin=it.positionOnScreen()
-        coursePanelBackdrop.sourceCoordinates=it
-    }
-        .academicSearchDismissGesture(academicSearch,detail)) {
-    Box(Modifier.fillMaxSize()) {
-    Box(Modifier.fillMaxSize()
-        .drawWithContent {
-            drawContent()
-            val depth=anchoredMenuDepth.progress.coerceIn(0f,1f)
-            if(depth>0f)drawRect(anchoredMenuDimColor.copy(alpha=(if(anchoredMenuIsDark).12f else .08f)*depth))
-        }
-        .nestedScroll(navigationScroll.nestedScrollConnection)) {
-    // A uniform canvas has no screen-space transform or image-filter dependency.
-    // Inner page buttons retain the same opaque color during every window flight.
-    // This screen owns edgeBackdrop and courseDepthBackdrop already. A second
-    // default host recorded the entire same scene although no child sampled it.
-    Box(Modifier.fillMaxSize()) {
-    Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().layerBackdrop(courseDepthBackdrop,reuseContent=true,enabled=courseDepthEnabled)
-            .background(canvasColor).then(courseBackgroundCapture)) {
-        // The glass must capture the same opaque canvas that is visible behind pages.
-        // Retained page transitions expose transparent gaps before they settle; keep
-        // those gaps out of the sampled scene as well as the visible canvas.
-        Box(Modifier.fillMaxSize().graphicsLayer().glassBackdropSource(edgeBackdrop)
-            .background(LocalGlassColors.current.groupedBackground)) {
-        CompositionLocalProvider(LocalGlassBackdrop provides staticBackdrop,LocalBlurBackdrop provides staticBackdrop,
-            LocalAnchoredMenuBackdrop provides visiblePageBackdrop,
-            LocalAnchoredMenuDepth provides anchoredMenuDepth,
-            LocalPageOrigins provides pageOrigins,LocalAcademicSearch provides academicSearch) {
-        Box(Modifier.fillMaxSize()) {
-        RetainedTabs(selected,detail==null) { destination ->
-            CompositionLocalProvider(LocalMorphInteractive provides (destination==selected&&detail==null),LocalNavigationViewportBinding provides { if(destination==selected&&detail==null)viewport=it }) {
-            when(destination) {
-                "home" -> HomePage(data,status,navigate){vm.refresh(fromClick=true)}
-                "schedule" -> SchedulePage(data.courses,semester,data.appearanceSnapshot,data.colors,
-                    refreshing=data.loading&&data.reloadFromClick,refreshRevision=data.reloadRevision,
-                    navigationProgress=navigationScroll.compactProgress,onModeChange={scheduleMode=it},
-                    onRoutineChange={course,routine->vm.setRoutine(course,routine)},onScaleCommit={vm.setCardHeight(it)}){vm.refresh(fromClick=true)}
-                "profile" -> ProfilePage(data,vm,navigate)
-            }
+
+    val popDetail: () -> Unit = remember(hero, scope) {
+        {
+            if (!hero.popForeground()) {
+                hero.closeForeground(scope)
             }
         }
-        AnchoredPages(detail,pageOrigins) { destination ->
-            when(destination) {
-                "login" -> LoginPage(data,vm,onWebLogin={navigate("webLogin")}){detail=null}
-                "webLogin" -> WebLoginPage(vm){detail=null}
-                "permissions" -> PermissionPage{detail=null}
-                "settings" -> SettingsPage(vm){detail=null}
-                "appearance" -> AppearancePage(vm){detail=null}
-                "files" -> DataPage(data,vm){detail=null}
-                "fileManager" -> FileManagerPage(vm){detail=null}
-                "about" -> AboutPage{detail=null}
-                "transcript" -> TranscriptPage(vm.repository){detail=null}
-                else -> QueryFeature.all.firstOrNull{it.key==destination}?.let { QueryPage(it,vm.repository){detail=null} }
-            }
-        }
-        }
-        }
-        }
+    }
+
+    val closeRootDetail: () -> Unit = remember(hero, scope) {
+        { hero.closeForeground(scope) }
+    }
+
+    val useNavigationRail = widthSizeClass != WindowWidthSizeClass.Compact || landscape
+
+    LaunchedEffect(useNavigationRail) {
+        if (!useNavigationRail && selected == "profile") {
+            selected = "home"
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        AcademicSearchScrim(academicSearch,detail)
-        CompositionLocalProvider(LocalGlassAppearance provides footerGlassAppearance(LocalGlassAppearance.current,LocalGlassColors.current.isDark),
-            LocalGlassBackdrop provides visiblePageBackdrop,LocalBlurBackdrop provides visiblePageBackdrop) {
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().academicAccessoryImeLift(academicSearch,detail).navigationBarsPadding().padding(horizontal=20.dp).padding(bottom=8.dp).height(118.dp)
-            .graphicsLayer()) {
-            Box(Modifier.align(Alignment.BottomStart).widthIn(max=560.dp).fillMaxWidth().fillMaxHeight()) {
-            AcademicAccessoryRow(navigationScroll.compactProgress,accessoryDocking,academicSearch,detail,statusDeparture,searchEnabled=courseSearchEnabled) {
-            val title=status.current?.course?.title?:status.next?.course?.title?:if(status.completed)"课程已完成" else "今日无课喵~"
-            val subtitle=status.current?.course?.place?:status.next?.let{"${it.startTime()} · ${it.course.place}"}.orEmpty()
-            val titleStyle=IosTypography.headline.copy(lineHeight=20.sp,color=LocalGlassColors.current.content)
-            val subtitleStyle=IosTypography.caption2.copy(lineHeight=14.sp,color=LocalGlassColors.current.content)
-            val source=rememberCourseMorphSource("course-status",24f,eligible=academicSearch.session?.expanded!=true){CourseMorphContent.Status}
-            CourseGlassSurface(Modifier.fillMaxSize().morphSource(source).graphicsLayer{alpha=if(courseMorph.owns("course-status"))0f else 1f},backdrop=visiblePageBackdrop,onClick={source?.open()}) {
-                Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(title,Modifier.morphText(source,"title",title,titleStyle),style=titleStyle,maxLines=1,overflow=TextOverflow.Ellipsis)
-                        if(subtitle.isNotBlank())Text(subtitle,Modifier.morphText(source,"subtitle",subtitle,subtitleStyle),style=subtitleStyle,maxLines=1,overflow=TextOverflow.Ellipsis)
+
+    val navigate: (String) -> Unit = remember(hero, scope, useNavigationRail) {
+        { destination ->
+            when {
+                destination == "home" || destination == "schedule" || destination == "tomato" ||
+                    (destination == "profile" && useNavigationRail) -> {
+                    selected = destination
+                    if (hero.hasForegroundSession) closeRootDetail()
+                }
+
+                else -> routeFromDestination(destination)?.let { route ->
+                    openSlide(route)
+                }
+            }
+        }
+    }
+
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val semester = remember(data.courses, data.settingsSnapshot) { vm.repository.semester() }
+    val initialStatus = remember(data.courses, semester) {
+        CourseClock.status(data.courses, semester, Instant.now())
+    }
+    val status by produceState(initialStatus, data.courses, semester, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val now = Instant.now()
+                val next = CourseClock.status(data.courses, semester, now)
+                value = next
+                val wake = listOfNotNull(next.current?.end, next.next?.start)
+                    .minOrNull()
+                    ?.let { Instant.now().until(it, java.time.temporal.ChronoUnit.MILLIS).coerceIn(1000L, 60_000L) }
+                    ?: 60_000L
+                delay(wake)
+            }
+        }
+    }
+
+    val bottomTabs = remember {
+        listOf(
+            PrimaryTab("home", "主页", Icons.Rounded.Home, Icons.Outlined.Home),
+            PrimaryTab("schedule", "课程表", Icons.Rounded.CalendarViewWeek, Icons.Outlined.CalendarViewWeek),
+        )
+    }
+    val railTabs = remember {
+        bottomTabs +
+            PrimaryTab("tomato", "专注", Icons.Rounded.Timer, Icons.Outlined.Timer) +
+            PrimaryTab("profile", "我", Icons.Rounded.Person, Icons.Outlined.Person)
+    }
+
+    val motionScheme = MaterialTheme.motionScheme
+    val onScheduleModeChange: (Int) -> Unit = remember { { scheduleMode = it } }
+
+    CompositionLocalProvider(LocalHeroTransitionController provides hero) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val depth = hero.maxProgress().coerceIn(0f, 1f)
+                    if (depth > 0.005f) {
+                        drawRect(color = Color.Black.copy(alpha = 0.24f * depth))
                     }
-                    Spacer(Modifier.width(8.dp))
-                    status.current?.let { dated->Countdown(dated.end,Modifier.morphText(source,"countdown","",IosTypography.headline.copy(color=LocalGlassColors.current.content,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold),provider={CourseTimeline.countdown(Duration.between(Instant.now(),dated.end).toMillis().coerceAtLeast(0))})) }
+                }
+                .onGloballyPositioned { coords ->
+                    hero.rootCoordinates = coords
+                    hero.rootSize = coords.size
+                },
+        ) {
+            // Apply GPU-isolated sink/rise depth transform to underlying tabs while overlays open/close
+            // so reading hero progress never recomposes Scaffold/HomePage at 120Hz.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        hero.backgroundDensity = density
+                        val u = hero.maxProgress()
+                        if (u > 0.001f) {
+                            val frame = computeBackgroundDepthFrame(u)
+                            transformOrigin = TransformOrigin.Center
+                            scaleX = frame.scale
+                            scaleY = frame.scale
+                            translationY = frame.offsetYDp * density
+                            alpha = frame.alpha
+                            val cornerPx = frame.cornerDp * density
+                            if (cornerPx > 0.5f) {
+                                clip = true
+                                shape = hero.backgroundShapeForCornerPx(cornerPx)
+                            }
+                        }
+                    }
+                    .focusProperties { canFocus = !hero.hasForegroundSession },
+            ) {
+                if (useNavigationRail) {
+                    val railInsets = WindowInsets.displayCutout
+                        .union(WindowInsets.navigationBars)
+                        .union(WindowInsets.statusBars)
+                        .only(WindowInsetsSides.Start + WindowInsetsSides.Vertical)
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        NavigationRail(
+                            modifier = Modifier.fillMaxHeight(),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            windowInsets = railInsets,
+                            header = if (landscape) {
+                                {
+                                    Text(
+                                        text = "Xachet",
+                                        style = XachetTypeTokens.BrandRail,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        ) {
+                            Spacer(Modifier.weight(0.25f))
+                            railTabs.forEach { tab ->
+                                val isSelected = selected == tab.key
+                                NavigationRailItem(
+                                    selected = isSelected,
+                                    onClick = { selected = tab.key },
+                                    icon = {
+                                        Icon(
+                                            if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                            contentDescription = tab.label,
+                                        )
+                                    },
+                                    label = { Text(tab.label) },
+                                )
+                            }
+                            Spacer(Modifier.weight(0.75f))
+                        }
+                        val railContentBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                            RetainedTabs(selected = selected) { destination ->
+                                PrimaryTabScreen(
+                                    destination = destination,
+                                    isActive = selected == destination,
+                                    data = data,
+                                    vm = vm,
+                                    status = status,
+                                    semester = semester,
+                                    contentPadding = PaddingValues(bottom = railContentBottom),
+                                    showProfileButton = false,
+                                    navigate = navigate,
+                                    onOpenSlide = openSlide,
+                                    onOpenHero = openHero,
+                                    onScheduleModeChange = onScheduleModeChange,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    val layoutDirection = LocalLayoutDirection.current
+                    val cutoutInsets = WindowInsets.displayCutout.asPaddingValues()
+                    val navigationInsets = WindowInsets.navigationBars.asPaddingValues()
+                    val wide = widthSizeClass != WindowWidthSizeClass.Compact
+                    var showTomatoFabMenu by remember { mutableStateOf(false) }
+                    val haptics = LocalHapticFeedback.current
+
+                    LaunchedEffect(selected, hero.hasForegroundSession) {
+                        if (hero.hasForegroundSession) {
+                            showTomatoFabMenu = false
+                        }
+                    }
+                    BackHandler(enabled = showTomatoFabMenu) {
+                        showTomatoFabMenu = false
+                    }
+
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                        bottomBar = {
+                            val colorScheme = MaterialTheme.colorScheme
+                            val isDark = colorScheme.surface.luminance() < 0.5f
+                            val scrimColor = if (isDark) Color.Black else Color.White
+                            val capsuleContainerColor = colorScheme.surfaceContainerLow
+                            val capsuleContentColor = colorScheme.onSurfaceVariant
+                            val capsuleStrokeColor = if (isDark) {
+                                Color(0xFF474B54).copy(alpha = 0.78f)
+                            } else {
+                                Color(0xFFD0D5DD).copy(alpha = 0.90f)
+                            }
+                            val selectedAccentColor = if (isDark) {
+                                lerp(colorScheme.primary, colorScheme.primaryContainer, 0.72f)
+                            } else {
+                                lerp(colorScheme.primary, Color(0xFF0A101A), 0.24f)
+                            }
+                            val selectedContentColor = if (selectedAccentColor.luminance() < 0.36f) {
+                                Color.White
+                            } else {
+                                Color(0xFF101318)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = FloatingToolbarDefaults.ScreenOffset),
+                            ) {
+                                val bottomScrimBrush = remember(scrimColor) {
+                                    Brush.verticalGradient(
+                                        0.00f to scrimColor.copy(alpha = 0.00f),
+                                        0.32f to scrimColor.copy(alpha = 0.40f),
+                                        0.68f to scrimColor.copy(alpha = 0.82f),
+                                        1.00f to scrimColor.copy(alpha = 0.96f),
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(bottomScrimBrush),
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            start = cutoutInsets.calculateStartPadding(layoutDirection) + 16.dp,
+                                            end = cutoutInsets.calculateEndPadding(layoutDirection) + 16.dp,
+                                            bottom = navigationInsets.calculateBottomPadding() +
+                                                FloatingToolbarDefaults.ScreenOffset,
+                                        )
+                                        .zIndex(1f),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    HorizontalFloatingToolbar(
+                                        expanded = true,
+                                        shape = CircleShape,
+                                        colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
+                                            toolbarContainerColor = capsuleContainerColor,
+                                            toolbarContentColor = capsuleContentColor,
+                                        ),
+                                        modifier = Modifier.drawWithContent {
+                                            drawContent()
+                                            val strokePx = 0.75.dp.toPx()
+                                            val half = strokePx / 2f
+                                            val radiusPx = (size.height / 2f - half).coerceAtLeast(0f)
+                                            drawRoundRect(
+                                                color = capsuleStrokeColor,
+                                                topLeft = Offset(half, half),
+                                                size = Size(size.width - strokePx, size.height - strokePx),
+                                                cornerRadius = CornerRadius(radiusPx, radiusPx),
+                                                style = Stroke(width = strokePx),
+                                            )
+                                        },
+                                    ) {
+                                        bottomTabs.forEach { tab ->
+                                            val isSelected = selected == tab.key
+                                            TooltipBox(
+                                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                                    TooltipAnchorPosition.Above,
+                                                ),
+                                                tooltip = { PlainTooltip { Text(tab.label) } },
+                                                state = rememberTooltipState(),
+                                            ) {
+                                                ToggleButton(
+                                                    checked = isSelected,
+                                                    onCheckedChange = {
+                                                        showTomatoFabMenu = false
+                                                        if (!isSelected) {
+                                                            selected = tab.key
+                                                        }
+                                                    },
+                                                    colors = ToggleButtonDefaults.colors(
+                                                        containerColor = Color.Transparent,
+                                                        contentColor = capsuleContentColor,
+                                                        checkedContainerColor = selectedAccentColor,
+                                                        checkedContentColor = selectedContentColor,
+                                                    ),
+                                                    shapes = ToggleButtonShapes(
+                                                        shape = CircleShape,
+                                                        pressedShape = CircleShape,
+                                                        checkedShape = CircleShape,
+                                                    ),
+                                                    modifier = Modifier.height(56.dp),
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                                            contentDescription = tab.label,
+                                                        )
+                                                        AnimatedVisibility(
+                                                            visible = isSelected || wide,
+                                                            enter = expandHorizontally(motionScheme.defaultSpatialSpec()),
+                                                            exit = shrinkHorizontally(motionScheme.defaultSpatialSpec()),
+                                                        ) {
+                                                            Text(
+                                                                text = tab.label,
+                                                                fontSize = 16.sp,
+                                                                lineHeight = 24.sp,
+                                                                maxLines = 1,
+                                                                softWrap = false,
+                                                                overflow = TextOverflow.Clip,
+                                                                modifier = Modifier.padding(start = ButtonDefaults.IconSpacing),
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    TomatoBottomCircleButton(
+                                        controller = vm.focus,
+                                        selected = selected == "tomato",
+                                        menuExpanded = showTomatoFabMenu,
+                                        containerColor = capsuleContainerColor,
+                                        contentColor = capsuleContentColor,
+                                        selectedContainerColor = selectedAccentColor,
+                                        selectedContentColor = selectedContentColor,
+                                        strokeColor = capsuleStrokeColor,
+                                        onClick = {
+                                            if (showTomatoFabMenu) {
+                                                showTomatoFabMenu = false
+                                            } else {
+                                                selected = "tomato"
+                                            }
+                                        },
+                                        onLongClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            showTomatoFabMenu = !showTomatoFabMenu
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            RetainedTabs(selected = selected) { destination ->
+                                PrimaryTabScreen(
+                                    destination = destination,
+                                    isActive = selected == destination,
+                                    data = data,
+                                    vm = vm,
+                                    status = status,
+                                    semester = semester,
+                                    contentPadding = innerPadding,
+                                    showProfileButton = true,
+                                    navigate = navigate,
+                                    onOpenSlide = openSlide,
+                                    onOpenHero = openHero,
+                                    onScheduleModeChange = onScheduleModeChange,
+                                )
+                            }
+
+                            TomatoExpressiveFabMenu(
+                                visible = showTomatoFabMenu,
+                                endPadding = cutoutInsets.calculateEndPadding(layoutDirection) + 16.dp,
+                                bottomPadding = navigationInsets.calculateBottomPadding() +
+                                    FloatingToolbarDefaults.ScreenOffset + 76.dp,
+                                onDismiss = { showTomatoFabMenu = false },
+                                onQuickStartPomodoro = {
+                                    vm.focus.quickStartDefault(FocusTimerMode.Pomodoro)
+                                    selected = "tomato"
+                                    showTomatoFabMenu = false
+                                },
+                                onQuickStartLongTimer = {
+                                    vm.focus.quickStartDefault(FocusTimerMode.LongTimer)
+                                    selected = "tomato"
+                                    showTomatoFabMenu = false
+                                },
+                            )
+                        }
+                    }
                 }
             }
-            }
-            }
-            NavigationChromeSlot(detail==null&&!statusChromeRequested,chromeDeparture,Modifier.align(Alignment.BottomStart)) {
-            GlasmioNavigationBarWithTrailingItem(tabs,GlasmioTabItem("profile","我",SfSymbol.PersonFilled),
-                selectedKey=selected,onSelected={if(detail==null&&!courseMorph.isBusy){selected=it;navigationScroll.expand()}},onExpand=navigationScroll::expand,compactProgress=navigationScroll.compactProgress,
-                mainMaxWidth=200.dp,visibilityProgress=chromeDeparture,modifier=Modifier.fillMaxWidth())
-            }
+
+            HeroOverlayHost(
+                hero = hero,
+                data = data,
+                vm = vm,
+                status = status,
+                semester = semester,
+                motionScheme = motionScheme,
+                onOpenSlide = openSlide,
+                onPopDetail = popDetail,
+                onCloseRoot = closeRootDetail,
+            )
         }
+    }
+}
+
+@Composable
+private fun HeroOverlayHost(
+    hero: HeroTransitionController,
+    data: AppData,
+    vm: SachetViewModel,
+    status: CourseStatus,
+    semester: LocalDate,
+    motionScheme: MotionScheme,
+    onOpenSlide: (DetailRoute) -> Unit,
+    onPopDetail: () -> Unit,
+    onCloseRoot: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    var savedForegroundStack by rememberSaveable(stateSaver = DetailStackSaver) {
+        mutableStateOf<List<DetailRoute>>(emptyList())
+    }
+
+    LaunchedEffect(Unit) {
+        if (savedForegroundStack.isNotEmpty() && hero.sessions.isEmpty()) {
+            hero.restoreStackImmediate(savedForegroundStack, scope)
         }
-        data.message?.let { message ->
-            CompositionLocalProvider(LocalGlassBackdrop provides visiblePageBackdrop,LocalBlurBackdrop provides visiblePageBackdrop) {
-                GlassSurface(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),onClick=vm::dismissMessage) {
-                    Text(message,Modifier.padding(16.dp),color=LocalGlassColors.current.destructive,style=IosTypography.body)
+    }
+
+    val foregroundSession = hero.foregroundSession
+    val foregroundStackSize = foregroundSession?.stack?.size ?: 0
+    val activeTopRouteKey = foregroundSession?.stack?.lastOrNull()?.routeKey
+
+    LaunchedEffect(foregroundSession?.stack) {
+        savedForegroundStack = foregroundSession?.stack ?: emptyList()
+    }
+
+    LaunchedEffect(activeTopRouteKey) {
+        focus.clearFocus(force = true)
+        keyboard?.hide()
+    }
+
+    val rootBackState = rememberPredictiveBackState(enabled = foregroundSession != null && foregroundStackSize == 1) {
+        onCloseRoot()
+    }
+    val nestedBackState = rememberPredictiveBackState(enabled = foregroundSession != null && foregroundStackSize > 1) {
+        onPopDetail()
+    }
+
+    if (hero.sessions.isEmpty()) return
+
+    val centeredSession = foregroundSession?.takeIf {
+        it.stack.size == 1 && it.stack.lastOrNull() is DetailRoute.CourseLesson
+    }
+    val foregroundIsCentered = centeredSession != null
+    val centeredState = rememberUpdatedState(foregroundIsCentered)
+    val scrimColor = MaterialTheme.colorScheme.scrim
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Combined backdrop dimming + background touch/accessibility shield on a single layer node.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clearAndSetSemantics {}
+                .graphicsLayer {
+                    val u = hero.foregroundProgress()
+                    val backP = rootBackState.progress.value
+                    val targetMax = if (centeredState.value) 0.52f else 0.42f
+                    alpha = ((u / 0.52f).coerceIn(0f, 1f) * targetMax * (1f - 0.55f * backP))
+                        .coerceIn(0f, 0.56f)
+                }
+                .background(scrimColor)
+                .pointerInput(hero) {
+                    awaitPointerEventScope {
+                        var downPos: Offset? = null
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Main)
+                            if (!hero.hasForegroundSession) {
+                                downPos = null
+                                continue
+                            }
+                            val first = event.changes.firstOrNull()
+                            if (first != null) {
+                                if (first.pressed && !first.previousPressed) {
+                                    downPos = if (first.isConsumed) null else first.position
+                                } else if (!first.pressed && first.previousPressed && downPos != null) {
+                                    if (centeredState.value &&
+                                        !first.isConsumed &&
+                                        (first.position - downPos).getDistance() < viewConfiguration.touchSlop
+                                    ) {
+                                        onCloseRoot()
+                                    }
+                                    downPos = null
+                                }
+                            }
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                },
+        )
+
+        hero.sessions.forEachIndexed { idx, session ->
+            androidx.compose.runtime.key(session.id) {
+                val sessionTopRoute = session.stack.lastOrNull()
+                if (sessionTopRoute != null) {
+                    val sessionCaptureLayer = rememberGraphicsLayer()
+                    remember(sessionCaptureLayer) {
+                        session.captureLayer = sessionCaptureLayer
+                        true
+                    }
+                    val isCenteredSession = session.stack.size == 1 && sessionTopRoute is DetailRoute.CourseLesson
+                    val isCurrentForeground = session === foregroundSession
+                    val activeRootBack = if (isCurrentForeground && session.stack.size == 1) {
+                        rootBackState
+                    } else {
+                        remember { PredictiveBackVisualState() }
+                    }
+                    val targetBg = if (isCenteredSession) {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
+                    val targetCornerDp = if (isCenteredSession) {
+                        CENTERED_CARD_CORNER_DP
+                    } else {
+                        OVERLAY_TARGET_PAGE_CORNER_DP
+                    }
+
+                    OverlaySessionHost(
+                        controller = hero,
+                        session = session,
+                        predictiveBack = activeRootBack,
+                        isCenteredCard = isCenteredSession,
+                        targetContainerColor = targetBg,
+                        targetCornerDp = targetCornerDp,
+                        modifier = Modifier.zIndex(if (session.isClosing) idx * 0.01f else 10f + idx * 0.01f),
+                        matrixFlyOutLayer = { srcRect, progressProvider ->
+                            HomeMatrixFlyOutOverlay(
+                                data = data,
+                                status = status,
+                                srcRect = srcRect,
+                                progressProvider = progressProvider,
+                            )
+                        },
+                    ) { contentModifier, targetTrackerModifier ->
+                        if (isCenteredSession) {
+                            val liveCourse = remember(data.courses, sessionTopRoute.course) {
+                                data.courses.firstOrNull {
+                                    it.id == sessionTopRoute.course.id &&
+                                        it.weekday == sessionTopRoute.course.weekday &&
+                                        it.first == sessionTopRoute.course.first
+                                } ?: sessionTopRoute.course
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .statusBarsPadding()
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = 20.dp, vertical = 28.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(modifier = targetTrackerModifier) {
+                                    CourseLessonCenteredCard(
+                                        course = liveCourse,
+                                        allCourses = data.courses,
+                                        onRoutineChange = { routine -> vm.setRoutine(liveCourse, routine) },
+                                        onUpdateCustomCourse = { updated -> vm.saveCustomCourse(updated) },
+                                        onDeleteCustomCourse = {
+                                            vm.deleteCustomCourse(liveCourse.id)
+                                            if (!session.isClosing) onCloseRoot()
+                                        },
+                                        onBack = { if (!session.isClosing) onCloseRoot() },
+                                        modifier = contentModifier,
+                                        isClosing = session.isClosing,
+                                    )
+                                }
+                            }
+                        } else {
+                            val supportsNestedStack = session.stack.size > 1 ||
+                                sessionTopRoute is DetailRoute.Profile ||
+                                sessionTopRoute is DetailRoute.Login
+                            Box(modifier = contentModifier.fillMaxSize()) {
+                                if (supportsNestedStack) {
+                                    AnimatedContent(
+                                        targetState = session.stack,
+                                        transitionSpec = {
+                                            ExpressiveMotion.directionalSlideTransform(
+                                                motionScheme = motionScheme,
+                                                forward = targetState.size >= initialState.size,
+                                            )
+                                        },
+                                        contentKey = { stack -> stack.lastOrNull()?.routeKey ?: "empty" },
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .then(
+                                                if (isCurrentForeground && session.stack.size > 1) {
+                                                    Modifier.predictiveBackContainer(nestedBackState)
+                                                } else {
+                                                    Modifier
+                                                },
+                                            ),
+                                        label = "DetailStackTransition-${session.id}",
+                                    ) { stack ->
+                                        val top = stack.lastOrNull()
+                                        if (top != null) {
+                                            val handleBack: () -> Unit = {
+                                                if (!session.isClosing) {
+                                                    if (stack.size > 1) onPopDetail() else onCloseRoot()
+                                                }
+                                            }
+                                            DetailRouteHost(
+                                                route = top,
+                                                data = data,
+                                                vm = vm,
+                                                status = status,
+                                                semester = semester,
+                                                onBack = handleBack,
+                                                onPush = { nextRoute -> onOpenSlide(nextRoute) },
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    val handleBack = remember(session, onCloseRoot) {
+                                        {
+                                            if (!session.isClosing) onCloseRoot()
+                                        }
+                                    }
+                                    DetailRouteHost(
+                                        route = sessionTopRoute,
+                                        data = data,
+                                        vm = vm,
+                                        status = status,
+                                        semester = semester,
+                                        onBack = handleBack,
+                                        onPush = onOpenSlide,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    }
-    }
-    }
-    CompositionLocalProvider(LocalAnchoredMenuDepth provides anchoredMenuDepth) {
-        CourseMorphHost(courseMorph,coursePanelBackdrop,status){course,routine->vm.setRoutine(course,routine)}
-    }
-    }
+}
+
+@Composable
+private fun PrimaryTabScreen(
+    destination: String,
+    isActive: Boolean,
+    data: AppData,
+    vm: SachetViewModel,
+    status: CourseStatus,
+    semester: LocalDate,
+    contentPadding: PaddingValues,
+    showProfileButton: Boolean = true,
+    navigate: (String) -> Unit,
+    onOpenSlide: (DetailRoute) -> Unit,
+    onOpenHero: (String, DetailRoute) -> Unit,
+    onScheduleModeChange: (Int) -> Unit,
+) {
+    when (destination) {
+        "home" -> HomePage(
+            data = data,
+            status = status,
+            contentPadding = contentPadding,
+            showProfileButton = showProfileButton,
+            onOpenHero = onOpenHero,
+        )
+
+        "schedule" -> SchedulePage(
+            courses = data.courses,
+            semester = semester,
+            status = status,
+            appearanceSnapshot = data.appearanceSnapshot,
+            colors = data.colors,
+            uiScalePercent = remember(data.settingsSnapshot) {
+                resolveXachetUiScalePercent(
+                    runCatching { JSONObject(data.settingsSnapshot) }.getOrElse { JSONObject() },
+                )
+            },
+            isActive = isActive,
+            refreshing = data.loading && data.reloadFromClick,
+            refreshRevision = data.reloadRevision,
+            contentPadding = contentPadding,
+            onModeChange = onScheduleModeChange,
+            onOpenStatus = { heroKey -> onOpenHero(heroKey, DetailRoute.CourseStatus) },
+            onOpenLesson = { course, heroKey -> onOpenHero(heroKey, DetailRoute.CourseLesson(course)) },
+            onOpenDay = { date, heroKey -> onOpenHero(heroKey, DetailRoute.CourseDay(date)) },
+            onRoutineChange = { course, routine -> vm.setRoutine(course, routine) },
+            onScaleCommit = { vm.setCardHeight(it) },
+            onRefresh = { vm.refresh(fromClick = true) },
+            onAddCustomCourse = { course -> vm.saveCustomCourse(course) },
+        )
+
+        "tomato" -> {
+            val focusState by vm.focus.state.collectAsStateWithLifecycle()
+            TomatoFocusPage(
+                state = focusState,
+                status = status,
+                contentPadding = contentPadding,
+                onStart = { vm.focus.start() },
+                onPause = { vm.focus.pause() },
+                onReset = { vm.focus.reset() },
+                onFinishOrSkip = { vm.focus.finishOrSkip() },
+                onModeSelect = { vm.focus.setMode(it) },
+                onUpdateSettings = { vm.focus.updateSettings(it) },
+                onOpenClassrooms = { onOpenHero("tomato-classrooms", DetailRoute.Query("classrooms")) },
+                onOpenCourseStatus = { onOpenHero("tomato-course-status", DetailRoute.CourseStatus) },
+                onDeleteRecord = { vm.focus.deleteRecord(it) },
+                onDismissFeedback = { vm.focus.dismissFeedback() },
+            )
+        }
+
+        "profile" -> ProfilePage(
+            data = data,
+            vm = vm,
+            contentPadding = contentPadding,
+            navigate = navigate,
+            onBack = null,
+        )
     }
 }
 
-/** Retain source layers and reserve fade-layer support beyond the complete flight path. */
-@Composable private fun NavigationChromeSlot(visible:Boolean,progress:State<Float>,modifier:Modifier=Modifier,content:@Composable ()->Unit) {
-    Layout(content={
-        Layout(content=content,modifier=Modifier.graphicsLayer {
-            alpha=1f-progress.value.coerceIn(0f,1f)
-            // Fade the completed glass as a group. Per-command modulation changes
-            // backdrop-relative blending and exposes the material capture boundary.
-            clip=false
-        }) { measurables,constraints ->
-            val x=24.dp.roundToPx();val y=48.dp.roundToPx()
-            val child=measurables.single().measure(constraints.offset(-2*x,-2*y))
-            layout(child.width+2*x,child.height+2*y){child.placeRelative(x,y)}
-        }
-    },modifier=modifier.then(if(visible)Modifier else Modifier.clearAndSetSemantics {})) { measurables,constraints ->
-        // The host has 20dp horizontal screen margins. A 24dp guard keeps the
-        // fade raster beyond the physical screen, without allocating hundreds of
-        // invisible pixels for the portions of a capsule that have already exited.
-        val x=24.dp.roundToPx();val y=48.dp.roundToPx()
-        val child=measurables.single().measure(constraints.offset(2*x,2*y))
-        layout(child.width-2*x,child.height-2*y) {
-            // Keep composition/optics alive, but remove hidden controls from hit testing.
-            if(visible||progress.value<.999f)child.placeRelative(-x,-y)
+@Composable
+private fun DetailRouteHost(
+    route: DetailRoute,
+    data: AppData,
+    vm: SachetViewModel,
+    status: CourseStatus,
+    semester: LocalDate,
+    onBack: () -> Unit,
+    onPush: (DetailRoute) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        when (route) {
+            DetailRoute.CourseStatus,
+            is DetailRoute.CourseDay,
+            is DetailRoute.CourseLesson -> CourseDetailPageHost(
+                rootMode = route,
+                status = status,
+                allCourses = data.courses,
+                semester = semester,
+                onRoutineChange = { course, routine -> vm.setRoutine(course, routine) },
+                onUpdateCustomCourse = { updated -> vm.saveCustomCourse(updated) },
+                onDeleteCustomCourse = { courseId -> vm.deleteCustomCourse(courseId) },
+                onBack = onBack,
+            )
+
+            DetailRoute.Profile -> ProfilePage(
+                data = data,
+                vm = vm,
+                contentPadding = WindowInsets.navigationBars.asPaddingValues(),
+                navigate = { dest -> routeFromDestination(dest)?.let(onPush) },
+                onBack = onBack,
+            )
+
+            DetailRoute.Login -> LoginPage(
+                data = data,
+                vm = vm,
+                onWebLogin = { onPush(DetailRoute.WebLogin) },
+                onBack = onBack,
+            )
+
+            DetailRoute.WebLogin -> WebLoginPage(vm = vm, onBack = onBack)
+            DetailRoute.Permissions -> PermissionPage(onBack = onBack)
+            DetailRoute.Settings -> SettingsPage(vm = vm, onBack = onBack)
+            DetailRoute.Appearance -> AppearancePage(vm = vm, onBack = onBack)
+            DetailRoute.Files -> DataPage(data = data, vm = vm, onBack = onBack)
+            DetailRoute.FileManager -> FileManagerPage(vm = vm, onBack = onBack)
+            DetailRoute.About -> AboutPage(onBack = onBack)
+            DetailRoute.Transcript -> TranscriptPage(repository = vm.repository, onBack = onBack)
+            is DetailRoute.Query -> {
+                QueryFeature.all.firstOrNull { it.key == route.featureKey }?.let { feature ->
+                    QueryPage(feature = feature, repository = vm.repository, onBack = onBack)
+                }
+            }
         }
     }
 }
 
-@Composable private fun RetainedTabs(selected:String,visible:Boolean,content:@Composable (String)->Unit) {
-    val mounted=remember{mutableStateListOf(selected)}
-    LaunchedEffect(Unit){
-        // Let the visible home finish its first frames before warming the hidden
-        // timetable (font layouts, index and glass layers are expensive cold work).
-        withFrameNanos{};delay(1000)
-        for(key in listOf("profile","home","schedule")) {
-            delay(350)
-            if(key !in mounted)mounted.add(key)
+@Composable
+private fun TomatoBottomCircleButton(
+    controller: FocusTimerController,
+    selected: Boolean,
+    menuExpanded: Boolean,
+    containerColor: Color,
+    contentColor: Color,
+    selectedContainerColor: Color,
+    selectedContentColor: Color,
+    strokeColor: Color,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val focusState by controller.state.collectAsStateWithLifecycle()
+    val highlighted = selected || menuExpanded
+    val ringColor = if (highlighted) selectedContentColor else MaterialTheme.colorScheme.primary
+    val interactionSource = remember { MutableInteractionSource() }
+    Surface(
+        shape = CircleShape,
+        color = if (highlighted) selectedContainerColor else containerColor,
+        contentColor = if (highlighted) selectedContentColor else contentColor,
+        border = BorderStroke(0.75.dp, strokeColor),
+        modifier = Modifier
+            .size(64.dp)
+            .clip(CircleShape)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = ripple(),
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (focusState.hasActiveProgress && !menuExpanded) {
+                Canvas(modifier = Modifier.fillMaxSize().padding(5.dp)) {
+                    val strokePx = 2.5.dp.toPx()
+                    val inset = strokePx * 0.5f
+                    val arcSize = Size(size.width - strokePx, size.height - strokePx)
+                    drawArc(
+                        color = ringColor.copy(alpha = 0.22f),
+                        startAngle = 0f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        topLeft = Offset(inset, inset),
+                        size = arcSize,
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
+                    )
+                    drawArc(
+                        color = ringColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * focusState.dialProgress,
+                        useCenter = false,
+                        topLeft = Offset(inset, inset),
+                        size = arcSize,
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
+                    )
+                }
+            }
+            AnimatedContent(
+                targetState = menuExpanded,
+                label = "TomatoBottomIconMorph",
+            ) { expanded ->
+                Icon(
+                    imageVector = when {
+                        expanded -> Icons.Rounded.Close
+                        selected -> Icons.Rounded.Timer
+                        else -> Icons.Outlined.Timer
+                    },
+                    contentDescription = if (expanded) "关闭快捷菜单" else "专注计时（长按快捷开启）",
+                    modifier = Modifier.size(26.dp),
+                )
+            }
         }
-    }
-    SideEffect{if(selected !in mounted)mounted.add(selected)}
-    for(destination in (mounted.toList()+selected).distinct()) key(destination) {
-        CrestoPageLayer(visible&&destination==selected) { content(destination) }
     }
 }
 
-@Composable internal fun Countdown(end:Instant,modifier:Modifier=Modifier,prominent:Boolean=false) {
-    val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    val remaining by produceState(Duration.between(Instant.now(),end).toMillis().coerceAtLeast(0),end,lifecycle) {
-        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while(true){value=Duration.between(Instant.now(),end).toMillis().coerceAtLeast(0);if(value==0L)break;delay(1000)}
+@Composable
+private fun TomatoExpressiveFabMenu(
+    visible: Boolean,
+    endPadding: androidx.compose.ui.unit.Dp,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    onDismiss: () -> Unit,
+    onQuickStartPomodoro: () -> Unit,
+    onQuickStartLongTimer: () -> Unit,
+) {
+    val motionScheme = MaterialTheme.motionScheme
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(motionScheme.fastEffectsSpec()),
+            exit = fadeOut(motionScheme.fastEffectsSpec()),
+            label = "TomatoFabMenuScrim",
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.34f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    ),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(motionScheme.fastEffectsSpec()) +
+                scaleIn(
+                    initialScale = 0.82f,
+                    transformOrigin = TransformOrigin(1f, 1f),
+                    animationSpec = motionScheme.fastSpatialSpec(),
+                ) +
+                slideInVertically(animationSpec = motionScheme.fastSpatialSpec()) { it / 3 },
+            exit = fadeOut(motionScheme.fastEffectsSpec()) +
+                scaleOut(
+                    targetScale = 0.84f,
+                    transformOrigin = TransformOrigin(1f, 1f),
+                    animationSpec = motionScheme.fastEffectsSpec(),
+                ) +
+                slideOutVertically(animationSpec = motionScheme.fastEffectsSpec()) { it / 4 },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = endPadding, bottom = bottomPadding),
+            label = "TomatoFabMenuItems",
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TomatoFabMenuItemPill(
+                    icon = Icons.Rounded.Schedule,
+                    title = "开启长计时",
+                    subtitle = "默认正向累计计时",
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    onClick = onQuickStartLongTimer,
+                )
+                TomatoFabMenuItemPill(
+                    icon = Icons.Rounded.Timer,
+                    title = "开启番茄钟",
+                    subtitle = "默认 25 分钟专注",
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    onClick = onQuickStartPomodoro,
+                )
+            }
         }
     }
-    Text(CourseTimeline.countdown(remaining),modifier,style=(if(prominent)IosTypography.title1 else IosTypography.headline).copy(fontFeatureSettings="tnum",fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold))
+}
+
+@Composable
+private fun TomatoFabMenuItemPill(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = 6.dp,
+        shadowElevation = 6.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmallEmphasized,
+                    maxLines = 1,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentColor.copy(alpha = 0.82f),
+                    maxLines = 1,
+                )
+            }
+            Surface(
+                shape = CircleShape,
+                color = contentColor.copy(alpha = 0.14f),
+                modifier = Modifier.size(36.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val PrimaryTabOrder = mapOf("home" to 0, "schedule" to 1, "tomato" to 2, "profile" to 3)
+
+@Composable
+private fun RetainedTabs(
+    selected: String,
+    content: @Composable (String) -> Unit,
+) {
+    val mounted = remember { mutableStateListOf(selected) }
+    if (selected !in mounted) mounted.add(selected)
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(500L)
+        if ("schedule" !in mounted) {
+            mounted.add("schedule")
+        }
+    }
+    var lastSelected by remember { mutableStateOf(selected) }
+    var outgoingTab by remember { mutableStateOf<String?>(null) }
+    if (selected != lastSelected) {
+        outgoingTab = lastSelected
+        lastSelected = selected
+    }
+    val activeIndex = PrimaryTabOrder[selected] ?: 0
+    val selectedState = rememberUpdatedState(selected)
+    val outgoingState = rememberUpdatedState(outgoingTab)
+    val spatialSpec = ExpressiveMotion.spatialFast<Float>()
+    val effectsSpec = ExpressiveMotion.effectsFast<Float>()
+    val alphaStates = remember { HashMap<String, State<Float>>(4) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        mounted.forEach { destination ->
+            androidx.compose.runtime.key(destination) {
+                val active = destination == selected
+                val isOutgoing = !active && destination == outgoingTab
+                val activeState = rememberUpdatedState(active)
+                val tabIndex = PrimaryTabOrder[destination] ?: 0
+                val targetSlot = (tabIndex - activeIndex).coerceIn(-1, 1).toFloat()
+
+                val alphaState = animateFloatAsState(
+                    targetValue = if (active) 1f else 0f,
+                    animationSpec = effectsSpec,
+                    label = "TabAlpha-$destination",
+                )
+                alphaStates[destination] = alphaState
+                val scaleState = animateFloatAsState(
+                    targetValue = if (active) 1f else 0.96f,
+                    animationSpec = spatialSpec,
+                    label = "TabScale-$destination",
+                )
+                val slideSlotState = animateFloatAsState(
+                    targetValue = targetSlot,
+                    animationSpec = spatialSpec,
+                    label = "TabSlide-$destination",
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(
+                            when {
+                                active -> 1f
+                                isOutgoing -> 0.5f
+                                else -> 0f
+                            },
+                        )
+                        .graphicsLayer {
+                            val a = alphaState.value
+                            val incomingAlpha = alphaStates[selectedState.value]?.value ?: 1f
+                            // Only blend one offscreen alpha layer at a time (the incoming active tab)
+                            // and keep strictly the outgoing tab behind it so a third mounted tab never flashes.
+                            alpha = when {
+                                activeState.value -> a
+                                destination == outgoingState.value && incomingAlpha < 0.995f -> 1f
+                                else -> 0f
+                            }
+                            val s = scaleState.value
+                            scaleX = s
+                            scaleY = s
+                            transformOrigin = TransformOrigin.Center
+                            translationX = slideSlotState.value * size.width * 0.08f
+                        }
+                        .focusProperties { canFocus = activeState.value }
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (!activeState.value) {
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                        }
+                        .then(if (!active) Modifier.clearAndSetSemantics {} else Modifier),
+                ) {
+                    content(destination)
+                }
+            }
+        }
+    }
+}
+
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
