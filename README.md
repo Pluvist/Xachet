@@ -40,7 +40,7 @@ Xachet 自 **0.19.78** 起以 Kotlin / Jetpack Compose 全量重写，**0.19.82*
 
 ### 4. 双实时活动与桌面小组件
 - **课程实时活动**：上课时精简展示数字倒计时，课间展示下一课时间与地点，无课日自动保持安静。
-- **番茄专注实时活动**：采用定制纯白钟表图标，番茄钟模式支持通知栏**“停止 / 跳过”**操作，长计时模式支持**“暂停 / 继续 / 停止”**操作；若系统不支持并发多项高优实时活动，专注期间由番茄计时自动接管，并在结束后恢复课程实时活动。
+- **番茄专注实时活动**：番茄钟模式支持通知栏**“停止 / 跳过”**操作，长计时模式支持**“暂停 / 继续 / 停止”**操作；若系统不支持并发多项高优实时活动，专注期间由番茄计时自动接管，并在结束后恢复课程实时活动。
 - **Expressive 桌面小组件**：提供 **2×2 今日课程** 与 **4×2 横向双栏概览** 小组件，重构为 Material 3 Expressive 卡片排版并适度增加高度，共享本地课程与错峰时间缓存。
 
 ### 5. 教务查询与离线缓存
@@ -70,7 +70,7 @@ bash native/gradlew -p native :app:assembleDebug :app:testDebugUnitTest --consol
 本项目整体遵循 [AGPL-3.0](LICENSE) 开源；上游 Sachet 原始代码保留 [MIT 许可证](LICENSE-MIT)（`Copyright (c) 2025 wyvern1723`），Xachet 修改部分版权为 `Copyright (c) 2026 Pluvist (Xachet modifications)`。
 
 - 上游项目：[wyvern1723/sachet](https://github.com/wyvern1723/sachet)
-- 参考项目：[Tomato](https://github.com/nsh07/Tomato)（GPL-3.0）、[HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)（AGPL-3.0）、[Cresto](https://github.com/Nevodev/Cresto)（Apache-2.0）、[MeiloX](https://github.com/NEORUAA/MeiloX)
+- 参考项目：[Tomato](https://github.com/nsh07/Tomato)（GPL-3.0）
 - 开源字体与依赖：`Google Sans Flex`（SIL OFL 1.1）、`MiSans` 可变字体（小米字体知识产权许可）、`PdfBox-Android`（Apache-2.0）等，详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 问题反馈请前往 [Xachet Issues](https://github.com/Pluvist/Xachet/issues)。欢迎 Star 支持。
